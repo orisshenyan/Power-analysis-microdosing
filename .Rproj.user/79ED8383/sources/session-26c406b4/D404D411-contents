@@ -1,0 +1,257 @@
+---
+title: "Simulation study for microdosing study"
+output: html_document
+date: "2024-09-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load libraries
+```{r,warning=FALSE,message=FALSE}
+library(glmmTMB)
+library(dplyr)
+library(MASS)
+library(TruncatedNormal)
+library(lmerTest)
+library(lme4)
+library(tidyr)
+library(reshape2)
+library(ggplot2)
+library(tibble)
+library(purrr)
+library(sjPlot)
+```
+
+# Data importing and tidying
+```{r}
+ASC <- read.csv("ASC.csv")
+ASC <- ASC%>%
+  rename(Participant_Number = Participant.number,
+         Simple_Complex = ASC.dimension,
+         Average_Score = Average.score) %>%
+      mutate(Simple_Complex = case_when(
+      Simple_Complex == "Elementary imagery" ~ "Simple",
+      Simple_Complex == "Complex imagery" ~ "Complex",
+      TRUE ~ Simple_Complex)) %>%
+      dplyr::select(Participant_Number, Simple_Complex, Average_Score, Condition)
+```
+
+# Effect sizes
+I used the effect sizes from Cavanna, F., Muller, S., de la Fuente, L.A. et al. Microdosing with psilocybin mushrooms: a double-blind placebo-controlled study. Transl Psychiatry 12, 307 (2022). https://doi.org/10.1038/s41398-022-02039-0, Supplementary Table S1. This was a repeated measures study with 34 participants. Participants were asked on a VAS scale from 0-100 about the self reported intensity on 0.5g of mushrooms compared to placebo. The dosing days were over two days, Wednesday and Friday. I used the effect sizes from the Wednesday. The statistics are reportes as Mean +/- SEM, I have converted the SEM to SD.  
+```{r}
+#Psilocybin effect sizes
+n_study <- 34
+mean_psilo <- 67.88
+mean_placebo <- 37.29
+#convert SEM to SD
+sd_psilo <- 6.09*sqrt(34)
+sd_placebo <- 2.48*sqrt(34)
+
+# calculate Cohen's d from summary statistics
+cohens_d_aggregate <- function(mean_x, mean_y, sd_x, sd_y, n_x, n_y) {
+  # Pooled standard deviation
+  pooled_sd <- sqrt(((n_x - 1) * sd_x^2 + (n_y - 1) * sd_y^2) / (n_x + n_y - 2))
+  # Cohen's d
+  d <- (mean_x - mean_y) / pooled_sd
+  
+  return(d)
+}
+
+cohensd_psilo <- cohens_d_aggregate(mean_psilo, mean_placebo, sd_psilo, sd_placebo, n_study, n_study)
+
+print (paste("The cohens d for the microdosing study is", round(cohensd_psilo, 2)))
+```
+
+#Summary statistics
+```{r}
+
+#ASC from original study
+summary_stats_ASC <- ASC %>%
+  group_by(Simple_Complex, Condition) %>%
+  summarise(
+    mean_ASC = mean(Average_Score, na.rm = TRUE),
+    sd_ASC = sd(Average_Score, na.rm = TRUE)
+  )
+
+summary_stats_ASC
+
+ganzflicker_simple_mu_ASC<- summary_stats_ASC %>%
+  filter(Simple_Complex == "Simple" & Condition == "Flicker") %>%
+  pull(mean_ASC)
+
+ganzflicker_simple_sd_ASC <- summary_stats_ASC %>%
+  filter(Simple_Complex == "Simple" & Condition == "Flicker") %>%
+  pull(sd_ASC)
+
+ganzflicker_complex_mu_ASC <- summary_stats_ASC %>%
+  filter(Simple_Complex == "Complex" & Condition == "Flicker") %>%
+  pull(mean_ASC)
+
+
+ganzflicker_complex_sd_ASC <- summary_stats_ASC %>%
+  filter(Simple_Complex == "Complex" & Condition == "Flicker") %>%
+  pull(sd_ASC)
+
+
+ganzfeld_simple_mu_ASC <- summary_stats_ASC %>%
+  filter(Simple_Complex == "Simple" & Condition == "Ganzfeld") %>%
+  pull(mean_ASC)
+
+
+ganzfeld_simple_sd_ASC <- summary_stats_ASC %>%
+  filter(Simple_Complex == "Simple" & Condition == "Ganzfeld") %>%
+  pull(sd_ASC)
+
+ganzfeld_complex_mu_ASC <- summary_stats_ASC %>%
+  filter(Simple_Complex == "Complex" & Condition == "Ganzfeld") %>%
+  pull(mean_ASC)
+
+ganzfeld_complex_sd_ASC <- summary_stats_ASC %>%
+  filter(Simple_Complex == "Complex" & Condition == "Ganzfeld") %>%
+  pull(sd_ASC)
+
+```
+
+Estimate the mean of the psilocybin arm for the ASC questionnaire - I have conservatively assumed a 0.8 effect size 
+```{r}
+
+#estimated mean of psilocybin ASC based on cohens d of 0.8 for all combinations of ganzfeld/flicker/simple/complex
+
+n_study <- 30
+
+# Cohen's d (0.8) = (mean_x - mean_y) / pooled_sd
+#solve for mean-y
+#0.8 * pooled sd + mean_x
+
+#ganzflicker simple
+est_mean_psilo_ganzflicker_simple_ASC <- 0.8*ganzflicker_simple_sd_ASC + ganzflicker_simple_mu_ASC
+print(paste("Simple ganzflicker psilocybin ASC mean:", est_mean_psilo_ganzflicker_simple_ASC))
+
+#ganzflicker complex
+est_mean_psilo_ganzflicker_complex_ASC <- 0.8*ganzflicker_complex_sd_ASC + ganzflicker_complex_mu_ASC
+print(paste("Complex ganzflicker psilocybin ASC mean:", est_mean_psilo_ganzflicker_complex_ASC))
+
+
+#ganzfeld simple
+est_mean_psilo_ganzfeld_simple_ASC <- 0.8*ganzfeld_simple_sd_ASC + ganzfeld_simple_mu_ASC
+print(paste("Simple ganzfeld psilocybin ASC mean:", est_mean_psilo_ganzfeld_simple_ASC))
+
+
+#ganzfeld complex
+est_mean_psilo_ganzfeld_complex_ASC <- 0.8*ganzfeld_complex_sd_ASC + ganzfeld_complex_mu_ASC
+print(paste("Complex ganzfeld psilocybin ASC mean:", est_mean_psilo_ganzfeld_complex_ASC))
+```
+
+Rerun original model for SD of residual
+```{r}
+ASCmod <- lmer(Average_Score ~ Condition*Simple_Complex + (1|Participant_Number),
+                  data=ASC)
+tab_model(ASCmod, show.se = TRUE, show.stat = TRUE)
+```
+
+# Power analysis 
+```{r}
+analyse_simulation <- function() {
+  # Set random seed and number of participants
+  set.seed(123)
+  n <- 30  # number of participants
+
+    # Calculate the standard deviation of residuals
+  residual_sd <- sqrt(503.70)
+  # Step 1: Simulate wide data (placebo arm) with jitter for psilocybin arm
+  wide_data <- ASC %>%
+    pivot_wider(names_from = c(Simple_Complex, Condition),
+                values_from = Average_Score,
+                values_fill = list(Average_Score = 0)) %>%
+    rename(
+      Simple_Flicker_Placebo = Simple_Flicker,
+      Complex_Flicker_Placebo = Complex_Flicker,
+      Simple_Ganzfeld_Placebo = Simple_Ganzfeld,
+      Complex_Ganzfeld_Placebo = Complex_Ganzfeld
+    ) %>%
+    # Add jitter for psilocybin arm with values capped at 0 and 100
+    mutate(
+      Simple_Flicker_Psilocybin = pmin(pmax(Simple_Flicker_Placebo + rnorm(n(), mean = 0, sd = residual_sd), 0), 100),
+      Complex_Flicker_Psilocybin = pmin(pmax(Complex_Flicker_Placebo + rnorm(n(), mean = 0, sd = residual_sd), 0), 100),
+      Simple_Ganzfeld_Psilocybin = pmin(pmax(Simple_Ganzfeld_Placebo + rnorm(n(), mean = 0, sd = residual_sd), 0), 100),
+      Complex_Ganzfeld_Psilocybin = pmin(pmax(Complex_Ganzfeld_Placebo + rnorm(n(), mean = 0, sd = residual_sd), 0), 100)
+    )
+
+  # Step 2: Calculate the correlation matrix for the data
+  cor_matrix <- cor(wide_data %>%
+                      dplyr::select(
+                        Simple_Flicker_Placebo, Simple_Ganzfeld_Placebo, 
+                        Complex_Flicker_Placebo, Complex_Ganzfeld_Placebo,
+                        Simple_Flicker_Psilocybin, Simple_Ganzfeld_Psilocybin, 
+                        Complex_Flicker_Psilocybin, Complex_Ganzfeld_Psilocybin
+                      ))
+  
+  # Step 3: Define means and standard deviations
+  means <- c(ganzflicker_simple_mu_ASC, ganzfeld_simple_mu_ASC, ganzflicker_complex_mu_ASC, ganzfeld_complex_mu_ASC,
+             est_mean_psilo_ganzflicker_simple_ASC, est_mean_psilo_ganzflicker_complex_ASC, est_mean_psilo_ganzfeld_simple_ASC, est_mean_psilo_ganzfeld_complex_ASC)
+  
+  sds <- c(ganzflicker_simple_sd_ASC, ganzfeld_simple_sd_ASC, ganzflicker_complex_sd_ASC, ganzfeld_complex_sd_ASC,
+           ganzflicker_simple_sd_ASC, ganzfeld_simple_sd_ASC, ganzflicker_complex_sd_ASC, ganzfeld_complex_sd_ASC)
+  
+  # Step 4: Ensure the correlation matrix is positive definite
+  cor_matrix <- as.matrix(nearPD(cor_matrix)$mat)
+  
+  # Step 5: Construct the covariance matrix
+  cov_matrix <- diag(sds) %*% cor_matrix %*% diag(sds)
+  
+  # Step 6: Simulate data with truncated multivariate normal distribution
+  simulated_data_ASC <- rtmvnorm(n = n,
+                                 mu = means,
+                                 sigma = cov_matrix,
+                                 lb = rep(0, length(means)),
+                                 ub = rep(100, length(means)))
+  colnames(simulated_data_ASC) <- colnames(cor_matrix)
+  
+  # Step 7: Add participant numbers and convert to long format
+  simulated_data_ASC_perp <- data.frame(Participant = 1:n, simulated_data_ASC)
+  simulated_data_ASC_long <- simulated_data_ASC_perp %>%
+    pivot_longer(cols = -Participant, 
+                 names_to = c("Complexity", "Condition", "Drug"), 
+                 names_sep = "_", 
+                 values_to = "ASC_Score")
+  
+  # Step 8: Fit a linear mixed-effects model
+  model_ASC <- lmer(ASC_Score ~ Condition + Complexity * Drug + (1 | Participant), data = simulated_data_ASC_long)
+  model_summary <- summary(model_ASC)
+  
+  # Step 9: Extract and return model coefficients as a tidy data frame
+  tidy_summary <- as.data.frame(model_summary$coefficients) %>%
+    rownames_to_column(var = "Term") %>%
+    dplyr::select(Term, Estimate, `Std. Error`, `Pr(>|t|)`)
+  
+  return(tidy_summary)
+}
+
+# Call the function to execute the simulation and view the model summary
+analyse_simulation()
+```
+
+I then run once to check if it worked
+```{r}
+analyse_simulation()
+```
+
+I then run 1000 simulations to check power& then calculagte power (note i have hidden warning as I get) the following error: boundary (singular) fit: see help('isSingular')
+```{r}
+simulation_table <- map_df(1:1000, ~analyse_simulation()) %>%
+  mutate(sim=rep(1:1000, each=5))
+```
+
+Finding the proportion >0.05 for the interaction term suggests 100% power 
+```{r}
+power <- simulation_table %>% filter(Term=='ComplexitySimple:DrugPsilocybin') %>%
+  mutate(sig=(`Pr(>|t|)` < .05))
+
+power %>% pull(sig) %>% sum()/1000 
+```
+
+
+
+

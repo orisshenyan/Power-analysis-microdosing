@@ -1,0 +1,14 @@
+---
+title: "Microdosing simulation studyh"
+output: html_document
+date: "2024-09-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+participants <- 30
+```

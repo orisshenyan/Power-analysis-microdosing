@@ -1,0 +1,1 @@
+{"frames":[],"message":"Error in ggplot(simulated_data_long, aes(x = Value)) : \n  could not find function \"ggplot\"\n"}

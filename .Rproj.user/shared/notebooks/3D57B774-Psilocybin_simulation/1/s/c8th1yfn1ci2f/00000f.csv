@@ -1,0 +1,3 @@
+"0","ASCmod <- lmer(Average_Score ~ Condition*Simple_Complex + (1|Participant_Number),"
+"0","                  data=ASC)"
+"0","tab_model(ASCmod, show.se = TRUE, show.stat = TRUE)"

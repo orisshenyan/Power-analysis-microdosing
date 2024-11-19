@@ -1,0 +1,306 @@
+---
+title: "Microdosing simulation study"
+output: html_document
+date: "2024-09-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(MASS)  # For negative binomial model
+library(lme4)  # For mixed-effects models
+library(simr)
+library(dplyr)
+library(tidyr)
+library(glmmTMB)
+```
+
+```{r}
+# Load necessary libraries
+set.seed(123)  # For reproducibility
+
+# Number of participants
+n <- 30
+
+# Original effect sizes for psilocybin and placebo for ASC
+mean_psilo <- 67.88
+sd_psilo <- 6.09
+mean_placebo <- 37.29
+sd_placebo <- 2.48
+
+# Observed data ranges from the provided data
+min_simple_count <- 0
+max_simple_count <- 100   # Based on the observed data
+min_complex_count <- 0
+max_complex_count <- 12   # Based on the observed data
+
+# ASC score ranges
+min_asc <- 0
+max_asc <- 100
+
+# Adjust simulation functions to account for effects observed in the original study
+# Simulate counts with expected effects for Ganzflicker and Ganzfeld
+simulate_counts <- function(mu, size, n, min_val, max_val, multiplier = 1) {
+  simulated_data <- rnbinom(n, size = size, mu = mu * multiplier)
+  # Cap data between observed min and max
+  simulated_data <- pmin(pmax(simulated_data, min_val), max_val)
+  return(simulated_data)
+}
+
+
+
+# Simulate Simple Hallucinations (Number) for Ganzflicker and Ganzfeld
+ganzflicker_simple_mu <- 16.17
+ganzflicker_simple_sd <- 14.72
+ganzfeld_simple_mu <- 5.53
+ganzfeld_simple_sd <- 6.46
+
+size_ganzflicker_simple <- (ganzflicker_simple_mu^2) / (ganzflicker_simple_sd^2 - ganzflicker_simple_mu)
+size_ganzfeld_simple <- (ganzfeld_simple_mu^2) / (ganzfeld_simple_sd^2 - ganzfeld_simple_mu)
+
+ganzflicker_complex_mu <- 1.40
+ganzflicker_complex_sd <- 2.50
+ganzfeld_complex_mu <- 1.40
+ganzfeld_complex_sd <- 2.1
+
+size_ganzflicker_complex <- (ganzflicker_complex_mu^2) / (ganzflicker_complex_sd^2 - ganzflicker_complex_mu)
+size_ganzfeld_complex <- (ganzfeld_complex_mu^2) / (ganzfeld_complex_sd^2 - ganzfeld_complex_mu)
+
+#psilocybin multiplier
+multiplier_psilo <- mean_psilo / mean_placebo
+
+
+# Simulate counts for Ganzflicker and Ganzfeld with differences between Psilocybin and Placebo
+# Increase mu for Psilocybin to simulate higher counts than Placebo
+
+# For Simple Hallucinations
+ganzflicker_simple_psilo <- simulate_counts((multiplier_psilo * ganzflicker_simple_mu), size_ganzflicker_simple, n, min_simple_count, max_simple_count)
+ganzflicker_simple_placebo <- simulate_counts(ganzflicker_simple_mu, size_ganzflicker_simple, n, min_simple_count, max_simple_count)
+ganzfeld_simple_psilo <- simulate_counts((multiplier_psilo * ganzfeld_simple_mu), size_ganzfeld_simple, n, min_simple_count, max_simple_count)
+ganzfeld_simple_placebo <- simulate_counts(ganzfeld_simple_mu, size_ganzfeld_simple, n, min_simple_count, max_simple_count)
+
+# For Complex Hallucinations
+ganzflicker_complex_psilo <- simulate_counts((multiplier_psilo * ganzflicker_complex_mu), size_ganzflicker_complex, n, min_complex_count, max_complex_count)
+ganzflicker_complex_placebo <- simulate_counts(ganzflicker_complex_mu, size_ganzflicker_complex, n, min_complex_count, max_complex_count)
+ganzfeld_complex_psilo <- simulate_counts((multiplier_psilo * ganzfeld_complex_mu), size_ganzfeld_complex, n, min_complex_count, max_complex_count)
+ganzfeld_complex_placebo <- simulate_counts(ganzfeld_complex_mu, size_ganzfeld_complex, n, min_complex_count, max_complex_count)
+
+asc_mu_ganzflicker_simple <- 65.97
+asc_sd_ganzflicker_simple <- 26.63
+asc_mu_ganzfeld_simple <- 40.35
+asc_sd_ganzfeld_simple <- 28.75
+asc_mu_ganzflicker_complex <- 24.36
+asc_sd_ganzflicker_complex <- 22.21
+asc_mu_ganzfeld_complex <- 15.20
+asc_sd_ganzfeld_complex <- 24.61 
+
+# Simulate ASC scores using normal distribution
+simulate_asc <- function(mean_val, sd_val, n, min_val, max_val, offset = 0) {
+  simulated_data <- pmax(rnorm(n, mean_val + offset, sd_val), 0)  # Ensure no negative values
+  # Cap data between observed min and max
+  simulated_data <- pmin(pmax(simulated_data, min_val), max_val)
+  return(simulated_data)
+}
+
+
+# Simulate ASC scores with expected effects, adjusting for Psilocybin vs Placebo differences
+asc_ganzflicker_simple_psilo <- simulate_asc(asc_mu_ganzflicker_simple*multiplier_psilo, asc_sd_ganzflicker_simple, n, min_asc, max_asc)  
+asc_ganzflicker_simple_placebo <- simulate_asc(asc_mu_ganzflicker_simple, asc_sd_ganzflicker_simple, n, min_asc, max_asc) 
+asc_ganzflicker_complex_psilo <- simulate_asc(asc_mu_ganzflicker_complex*multiplier_psilo, asc_sd_ganzflicker_complex, n, min_asc, max_asc)  
+asc_ganzflicker_complex_placebo <- simulate_asc(asc_mu_ganzflicker_complex, asc_sd_ganzflicker_complex, n, min_asc, max_asc)  
+
+asc_ganzfeld_simple_psilo <- simulate_asc(asc_mu_ganzfeld_simple*multiplier_psilo, asc_sd_ganzfeld_simple, n, min_asc, max_asc)  
+asc_ganzfeld_simple_placebo <- simulate_asc(asc_mu_ganzfeld_simple, asc_sd_ganzfeld_simple, n, min_asc, max_asc) 
+asc_ganzfeld_complex_psilo <- simulate_asc(asc_mu_ganzfeld_complex*multiplier_psilo, asc_sd_ganzfeld_complex, n, min_asc, max_asc)  
+asc_ganzfeld_complex_placebo <- simulate_asc(asc_mu_ganzfeld_complex, asc_sd_ganzfeld_complex, n, min_asc, max_asc)  
+
+
+# Create a dataframe in long format
+simulated_data <- data.frame(
+  Participant = rep(1:n, each = 8),
+  Condition = rep(c("Psilocybin", "Placebo"), each = 4, times = n),
+  Hallucination_Type = rep(c("Simple", "Complex"), times = 4 * n),
+  Method = rep(c("Ganzflicker", "Ganzfeld"), each = 2, times = 2 * n),
+  Hallucination_Count = c(
+    ganzflicker_simple_psilo, ganzflicker_simple_placebo,
+    ganzflicker_complex_psilo, ganzflicker_complex_placebo,
+    ganzfeld_simple_psilo, ganzfeld_simple_placebo,
+    ganzfeld_complex_psilo, ganzfeld_complex_placebo
+  ),
+  ASC_Score = c(
+    asc_ganzflicker_simple_psilo, asc_ganzflicker_simple_placebo,
+    asc_ganzflicker_complex_psilo, asc_ganzflicker_complex_placebo,
+    asc_ganzfeld_simple_psilo, asc_ganzfeld_simple_placebo,
+    asc_ganzfeld_complex_psilo, asc_ganzfeld_complex_placebo
+  )
+)
+
+# Convert to long format
+simulated_data_long <- simulated_data %>%
+  pivot_longer(cols = c(Hallucination_Count, ASC_Score), 
+               names_to = "Measure", 
+               values_to = "Value")
+
+# Check the distributions using histograms and boxplots
+
+# Histograms
+ggplot(simulated_data_long, aes(x = Value)) +
+  geom_histogram(bins = 30, fill = 'blue', alpha = 0.7) +
+  facet_wrap(~ Measure + Hallucination_Type + Method, scales = 'free') +
+  theme_minimal() +
+  labs(title = "Histograms of Simulated Data by Measure, Hallucination Type, and Method")
+
+# Boxplots
+ggplot(simulated_data_long, aes(x = Method, y = Value, fill = Condition)) +
+  geom_boxplot(alpha = 0.7) +
+  facet_wrap(~ Measure + Hallucination_Type, scales = 'free') +
+  theme_minimal() +
+  labs(title = "Boxplots of Simulated Data by Measure, Hallucination Type, and Condition")
+```
+
+```{r}
+ASC <- simulated_data_long %>%
+  filter(Measure == "ASC_Score")
+
+count <- simulated_data_long %>%
+  filter(Measure == "Hallucination_Count")
+
+```
+
+
+```{r}
+nb_model <- glmmTMB(Value ~ Hallucination_Type + Method + Condition + (1 | Participant), data = count)
+tab_model(nb_model)
+```
+
+
+```{r}
+# Set up simulation parameters
+set.seed(123)
+n_simulations <- 1
+sample_sizes <- seq(20, 200, by = 10)  # Range of sample sizes to test
+alpha <- 0.05  # Significance level
+```
+
+```{r}
+```
+
+
+```{r}
+# VAS Scores for Psilocybin and Placebo
+mean_psilo <- 67.88
+sd_psilo <- 6.09
+mean_placebo <- 37.29
+sd_placebo <- 2.48
+
+# Sample sizes (assuming equal, e.g., 30 in each group)
+n <- 34
+
+# Mean Difference
+mean_diff <- mean_psilo - mean_placebo
+
+# Pooled Standard Deviation
+pooled_sd <- sqrt(((n - 1) * sd_psilo^2 + (n - 1) * sd_placebo^2) / (2 * n - 2))
+
+# Cohen's d Effect Size for VAS
+cohens_d <- mean_diff / pooled_sd
+cohens_d
+
+# Convert Cohen's d to IRR (using a hypothetical scaling factor k)
+k <- 0.5  # Scaling factor for converting d to IRR, adjust based on prior research
+effect_size_irr <- exp(cohens_d * k)
+print(paste("Estimated IRR based on Cohen's d:", round(effect_size_irr, 2)))
+
+# Assume ASC scores are similarly scaled
+effect_size_asc <- mean_diff  # Using the same mean difference for ASC
+print(paste("Estimated ASC effect size:", round(effect_size_asc, 2)))
+```
+
+```{r}
+#simulate psilocybin simple and complex group
+psilocybin <- rnbinom(n=34, #number of observations (Step 3, Q1)
+            mu=c(454.8,53.0), #means of 2 variables (Step 3, Q1)
+            sd = c(29.14,13.15), #sds of 2 variables (Step 3, Q1)
+            varnames = c('simple', 'complex', 'simple_ASC', 'complex_ASC'), #names of 2 variables
+            r=0.582) #correlation between the 2 variables (Step 3 Q2)
+```
+
+
+```{r}
+
+# Simulation function
+simulate_study <- function(n, effect_size_irr, effect_size_asc) {
+  # Create a data frame to store simulated data
+  data <- data.frame(
+    condition = factor(rep(c("Ganzflicker", "Ganzfeld"), each = n/2)),
+    psilocybin = factor(rep(c(0, 1), each = n/2))  # 0 = placebo, 1 = psilocybin
+  )
+  
+  # Simulate outcome for simple hallucinations using a negative binomial distribution
+  data$simple_hallucinations <- rnbinom(n, size = 1, mu = ifelse(data$psilocybin == 1, effect_size_irr, 1))
+  
+  # Simulate ASC scores using a normal distribution
+  data$asc <- pmax(0, rnorm(n, mean = ifelse(data$psilocybin == 1, effect_size_asc, 0), sd = 10))
+  
+  nb_model <- tryCatch(glm.nb(simple_hallucinations ~ condition + psilocybin, data = data), 
+                       error = function(e) NULL, warning = function(w) NULL)
+  
+  #lme_model <- tryCatch(lmer(asc ~ condition + psilocybin + (1 | condition), data = data), 
+                        #error = function(e) NULL, warning = function(w) NULL)
+  
+  # Initialize p-values
+  p_nb <- NA
+  #p_lme <- NA
+
+  # Extract p-values safely
+  if (!is.null(nb_model)) {
+    nb_summary <- summary(nb_model)
+    nb_coeff_names <- rownames(nb_summary$coefficients)
+    if ("psilocybin1" %in% nb_coeff_names) {
+      p_nb <- nb_summary$coefficients["psilocybin1", "Pr(>|z|)"]
+    }
+  }
+
+  #if (!is.null(lme_model)) {
+    #lme_summary <- summary(lme_model)
+    #lme_coeff_names <- rownames(coef(lme_summary))
+    #if ("psilocybin1" %in% lme_coeff_names) {
+      #p_lme <- coef(lme_summary)["psilocybin1", "Pr(>|t|)"]
+    #}
+  #}
+  
+  # Check if 2 out of 3 outcomes are significant
+  significant_count <- sum(p_nb < alpha)
+  return(significant_count >= 1)
+}
+
+```
+
+```{r}
+# Run simulations for each sample size
+results <- data.frame(sample_size = sample_sizes, power = NA)
+```
+
+```{r}
+for (i in 1:length(sample_sizes)) {
+  n <- sample_sizes[i]
+  power_estimates <- replicate(n_simulations, simulate_study(n, effect_size_irr, effect_size_asc))
+  power <- mean(power_estimates)
+  results$power[i] <- power
+}
+
+```
+
+```{r}
+# Plot power curve
+plot(results$sample_size, results$power, type = "b", xlab = "Sample Size", ylab = "Power",
+     main = "Power Analysis for Psilocybin Study")
+
+# Display results
+print(results)
+```
+
+

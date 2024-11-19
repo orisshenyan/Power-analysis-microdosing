@@ -1,0 +1,6 @@
+"0","Count$Duration <- ifelse(Count$Condition == 'Ganzfeld', 25, 15)"
+"0","mm.nb.full.converge <- glmmTMB(Hallucination_Count ~ Condition*Simple_Complex + offset(log(Duration)) + (1|Participant_Number),"
+"0","                               family = ""nbinom2"","
+"0","                               data=Count)"
+"0","tab_model(mm.nb.full.converge, show.se = TRUE, show.stat = TRUE)"
+"0",""

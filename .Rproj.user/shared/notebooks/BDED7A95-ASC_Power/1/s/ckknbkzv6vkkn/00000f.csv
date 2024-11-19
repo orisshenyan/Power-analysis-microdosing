@@ -1,0 +1,5 @@
+"0","# Adjust correlation matrix to be positive definite"
+"0","cor_matrix <- as.matrix(nearPD(cor_matrix)$mat)"
+"0",""
+"0","# Construct the covariance matrix"
+"0","cov_matrix <- diag(sds) %*% cor_matrix %*% diag(sds)"

@@ -1,0 +1,2 @@
+"0","simulation_table <- map_df(1:1000, ~analyse_simulation()) %>%"
+"0","  mutate(sim=rep(1:1000, each=5))"

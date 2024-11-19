@@ -1,0 +1,2158 @@
+---
+title: "Hallucination paper results"
+author: "Oris Shenyan"
+date: "2023-10-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Loading libraries
+```{r, message=FALSE}
+library (readxl)
+library (ggplot2)
+library(rstatix)
+library(ggpubr)
+library(dplyr)
+library(RColorBrewer)
+library(reshape2)
+library(plotly)
+library(stringr)
+library(ggpol)
+library(ggpubr)
+library(tidyr)
+library(lubridate)
+library(ggpol)
+library(rio)
+library(MASS)
+library(lme4)
+library(sjPlot)
+library(tokenizers)
+library(stopwords)
+library(tidyverse)
+library(tidytext)
+library(tm)
+library(wordcloud)
+library(plotly)
+library(stringr)
+library(rstatix)
+#library(rstan)
+#library(brms)
+```
+# Setting up parameters/admin - ignore mostly
+
+Set path for data and use function to import multiple excel sheets
+```{r, message=FALSE}
+#Set path for data
+path = ("/Users/orisshenyan/Documents/OneDrive - University College London/PhD/Ganzfeld/Data/DATA.xlsx")
+
+#Import multiple sheets
+data <- import_list("/Users/orisshenyan/Documents/OneDrive - University College London/PhD/Ganzfeld/Data/DATA.xlsx")
+```
+
+Isolate the button press data
+```{r}
+button <- data$Button_press_simple_complex
+```
+
+Select only participant 8 onward
+```{r}
+button <- button[-(1:60),]
+```
+
+Create an empty list to store data frames and run function to import flicker .mat from participants to create flicker data frame
+
+```{r, message=FALSE}
+
+df_list <- list()
+
+
+for (i in c('08', '09', 10:21, 23:28)) {
+  # import start and end times
+  flicker <- read.csv(paste0("/Users/orisshenyan/Documents/OneDrive - University College London/PhD/Ganzfeld/Data/", i, "/", i, "Flicker_timeseries.csv"))
+  
+  # create a new column and populate it with the even-indexed rows from the first column
+  flicker$End <- flicker$Time[seq(2, nrow(flicker), 2)]
+  
+  # remove the even-indexed rows from the first column
+  flicker$Time <- flicker$Time[seq(1, nrow(flicker), 2)]
+  
+  # slice in half
+  flicker <- flicker %>% 
+    slice(seq(0.5 * n()))
+  
+  # import hallucination description
+  buttonpress <- data$Button_press_simple_complex
+  
+  # extract relevant condition and participant number
+  participant_flicker <- buttonpress[(buttonpress$Participant_Number == as.character(i)) & (buttonpress$Condition == "Flicker"), ]
+  
+  # change simple/complex to factor
+  participant_flicker$Simple_Complex <- as.factor(participant_flicker$Simple_Complex)
+  
+  # bind button presses with description
+  flicker <- cbind(participant_flicker, flicker)
+  
+  # add a new column with the participant number
+  flicker$Participant_Number <- i
+  
+  flicker$Button.Press <- NULL
+  
+  # add the data frame to the list
+  df_list[[i]] <- flicker
+}
+
+# loop through participant numbers '08' and '09' for time series data for FLICKER
+for (i in c('29', '30', '31', '32', '33', '34', '35', '36', '37', '38')) {
+  # import start and end times
+  flicker <- read.csv(paste0("/Users/orisshenyan/Documents/OneDrive - University College London/PhD/Ganzfeld/Data/", i, "/", i, "Flicker_timeseries.csv"))
+  
+  # import hallucination description
+  buttonpress <- data$Button_press_simple_complex
+  
+  # extract relevant condition and participant number
+  participant_flicker <- buttonpress[(buttonpress$Participant_Number == as.character(i)) & (buttonpress$Condition == "Flicker"), ]
+  
+  # change simple/complex to factor
+  participant_flicker$Simple_Complex <- as.factor(participant_flicker$Simple_Complex)
+  
+  # bind button presses with description
+  flicker <- cbind(participant_flicker, flicker)
+  
+  # add a new column with the participant number
+  flicker$Participant_Number <- i
+  
+  flicker$Duration <- NULL
+  
+  # add the data frame to the list
+  df_list[[i]] <- flicker
+}
+
+
+# combine all the data frames in the list
+flicker_combined <- do.call(rbind, df_list)
+
+
+# add a new column with the duration
+flicker_combined$Duration <- flicker_combined$End - flicker_combined$Time
+```
+
+Create an empty list to store data frames and run function to import ganzfeld .mat from participants to create ganzfeld data frame
+
+```{r, message=FALSE}
+df_list <- list()
+# loop through participant numbers '08' and '09' for time series data for GANZFELD
+for (i in c('08', '09', 10:21, 23:28)) {
+  # check if csv file exists
+  file_path <- paste0("/Users/orisshenyan/Documents/OneDrive - University College London/PhD/Ganzfeld/Data/", i, "/", i, "Ganzfeld_timeseries.csv")
+  if (!file.exists(file_path)) {
+    # skip participant if file does not exist
+    next
+  }
+  Ganzfeld <- read.csv(file_path)
+  # create a new column and populate it with the even-indexed rows from the first column
+  Ganzfeld$End <- Ganzfeld$Time[seq(2, nrow(Ganzfeld), 2)]
+  # remove the even-indexed rows from the first column
+  Ganzfeld$Time <- Ganzfeld$Time[seq(1, nrow(Ganzfeld), 2)]
+  
+  # slice in half
+  Ganzfeld <- Ganzfeld %>% 
+    slice(seq(0.5 * n()))
+  
+  # import hallucination description
+  buttonpress <- data$Button_press_simple_complex
+  
+  # extract relevant condition and participant number
+  participant_Ganzfeld <- buttonpress[(buttonpress$Participant_Number == as.character(i)) & (buttonpress$Condition == "Ganzfeld"), ]
+  
+  # change simple/complex to factor
+  participant_Ganzfeld$Simple_Complex <- as.factor(participant_Ganzfeld$Simple_Complex)
+  
+  # bind button presses with description
+  Ganzfeld <- cbind(participant_Ganzfeld, Ganzfeld)
+  
+  # add a new column with the participant number
+  Ganzfeld$Participant_Number <- i
+  
+  #Remove button press so it merges with the previous
+  Ganzfeld$Button.Press <- NULL
+  
+  # add the data frame to the list
+  df_list[[i]] <- Ganzfeld
+}
+
+# loop through participant numbers '08' and '09' for time series data for Ganzfeld
+for (i in c('29', '30', '31', '32', '33', '34', '35', '36', '37', '38')) {
+  # import start and end times
+  Ganzfeld <- read.csv(paste0("/Users/orisshenyan/Documents/OneDrive - University College London/PhD/Ganzfeld/Data/", i, "/", i, "Ganzfeld_timeseries.csv"))
+  
+  # import hallucination description
+  buttonpress <- data$Button_press_simple_complex
+  
+  # extract relevant condition and participant number
+  participant_Ganzfeld <- buttonpress[(buttonpress$Participant_Number == as.character(i)) & (buttonpress$Condition == "Ganzfeld"), ]
+  
+  # change simple/complex to factor
+  participant_Ganzfeld$Simple_Complex <- as.factor(participant_Ganzfeld$Simple_Complex)
+  
+  # bind button presses with description
+  Ganzfeld <- cbind(participant_Ganzfeld, Ganzfeld)
+  
+  # add a new column with the participant number
+  Ganzfeld$Participant_Number <- i
+  
+  #Remove duration so it binds
+  Ganzfeld$Duration <- NULL
+  
+  # add the data frame to the list
+  df_list[[i]] <- Ganzfeld
+}
+
+# combine all the data frames in the list
+Ganzfeld_combined <- do.call(rbind, df_list)
+
+# add a new column with the duration
+Ganzfeld_combined$Duration <- Ganzfeld_combined$End - Ganzfeld_combined$Time
+
+```
+
+combine ganzfeld and flicker data frames
+
+```{r}
+total <- rbind(flicker_combined, Ganzfeld_combined)
+```
+
+create duration time series (sum) by collapsing all the participant numbers and simple and complex
+```{r}
+durationtotal <-  aggregate(Duration ~ Participant_Number+Condition+Simple_Complex, total, sum, na.rm = TRUE)
+```
+
+create duration time series (average) by collapsing all the participant numbers and simple and complex
+```{r}
+durationaverage <-  aggregate(Duration ~ Participant_Number+Condition+Simple_Complex, total, mean, na.rm = TRUE)
+```
+
+Create a data frame with all possible combinations of participant number, Simple_Complex, and Condition
+```{r}
+all_combinations <- expand.grid(Participant_Number = unique(durationaverage$Participant_Number),
+                                Simple_Complex = c("Simple", "Complex"),
+                                Condition = c("Flicker", "Ganzfeld"))
+
+```
+
+Create an average duration data frame with missing with 0's by combining with all combinations
+```{r}
+durationaverage <- merge(all_combinations, durationaverage, all.x = TRUE)
+durationaverage$Duration[is.na(durationaverage$Duration)] <- 0
+```
+
+Create a total duration data frame with missing with 0's by combining with all combinations
+```{r}
+#  fill in missing values with 0 counts
+durationtotal <- merge(all_combinations, durationtotal, all.x = TRUE)
+durationtotal$Duration[is.na(durationtotal$Duration)] <- 0
+```
+
+create hallucination count data frame
+```{r, message=FALSE}
+# Convert Condition to a factor variable
+button$Condition <- factor(button$Condition)
+
+
+# Group the data by participant and Simple_Complex and count the number of hallucinations
+hallucination_counts <- button %>% 
+  group_by(Participant_Number, Simple_Complex, Condition) %>% 
+  summarise(Hallucination_Count = n())
+
+# Merge the all_combinations data frame with the hallucination_counts data frame to fill in missing values with 0 counts
+hallucination_counts <- merge(all_combinations, hallucination_counts, all.x = TRUE)
+hallucination_counts$Hallucination_Count[is.na(hallucination_counts$Hallucination_Count)] <- 0
+```
+
+Create the ASC data frame
+```{r}
+#Set questionnaire as seperate DF
+fiveD_ASC <- data$`5D-ASC`
+
+#Select only perp 8 onward
+fiveD_ASC <- fiveD_ASC[-(1:14),]
+
+#Convert experience to factors 
+fiveD_ASC$Experience <- as.factor(fiveD_ASC$Experience)
+
+#Categorise into simple, create new data frame and average simple 
+simpleASC <- fiveD_ASC[, c(1, 2, 4, 5)]
+simpleASC$average <- rowMeans(simpleASC[, 3:4])
+
+#Categorise into complex, create new df, and average complex
+complexASC <- fiveD_ASC[, c(1, 2, 6, 8, 9)]
+complexASC$average <- rowMeans(complexASC[, 3:5])
+
+#Remerge the data frames
+ASC <- merge(simpleASC, complexASC, by = c('Participant number', 'Experience'))
+names(ASC)[5]<-paste("Elementary imagery")
+names(ASC)[9]<-paste("Complex imagery")
+
+#Convert wide to long
+ASC <-  tidyr::pivot_longer(ASC, cols=c('Elementary imagery','Complex imagery'))
+names(ASC)[8]<-paste("ASC dimension")
+names(ASC)[9]<-paste("Average score")
+names(ASC)[2] <- paste("Condition")
+ASC$`ASC dimension` <- as.factor(ASC$`ASC dimension`)
+ASC$`ASC dimension`<- relevel(ASC$`ASC dimension`, "Elementary imagery")
+
+```
+
+Create the IEQ data frame
+```{r}
+Imagery <- data$Imagery
+
+#Select only perp 8 onward
+Imagery <- Imagery[-(1:14),]
+
+#Convert experience to factors 
+Imagery$Experience <- as.factor(Imagery$Experience)
+
+#Categorise into simple, create new data frame and average simple
+simpleIEQ <- Imagery[, c(1, 2, 3, 4, 5, 6)]
+simpleIEQ$average <- rowMeans(simpleIEQ[, 3:6])
+
+
+#Categorise into complex, create new df, and average complex
+complexIEQ <- Imagery[, c(1, 2, 7, 8, 9, 10)]
+complexIEQ$average <- rowMeans(complexIEQ[, 3:6])
+
+#Remerge the data frames
+IEQ <- merge(simpleIEQ, complexIEQ, by = c('Participant number', 'Experience'))
+names(IEQ)[7]<-paste("Simple imagery")
+names(IEQ)[12]<-paste("Complex imagery")
+
+#Convert into long
+IEQ <-  tidyr::pivot_longer(IEQ, cols=c('Simple imagery','Complex imagery'))
+names(IEQ)[11]<-paste("IEQ dimension")
+names(IEQ)[12]<-paste("Average score")
+names(IEQ)[2] <- paste("Condition")
+IEQ$`IEQ dimension` <- as.factor(IEQ$`IEQ dimension`)
+IEQ$`IEQ dimension`<- relevel(IEQ$`IEQ dimension`, "Simple imagery")
+```
+# Analysis Begins 
+
+#### Figure 2 of the paper - distributions
+```{r}
+#Add jittered Y dummy variable for scatter plot 
+flicker_combined$Y <- runif(nrow(flicker_combined), 0, 1)
+Ganzfeld_combined$Y <- runif(nrow(Ganzfeld_combined), 0, 1)
+
+#Add condition
+flicker_combined$Condition <- 'Flicker'
+Ganzfeld_combined$Condition <- 'Ganzfeld'
+
+#Combine total
+total <- rbind(flicker_combined, Ganzfeld_combined)
+
+# Average time of onset of simple and complex hallucinations for flicker
+# Calculate median of Time column by Simple_Complex factor
+result <- aggregate(Time ~ Simple_Complex, data = flicker_combined, FUN = mode)
+
+
+# Average time of onset of Ganzfeld hallucinations
+# Calculate median of Time column by Simple_Complex factor
+result2 <- aggregate(Time ~ Simple_Complex, data = Ganzfeld_combined, FUN = median)
+
+
+#Plot simple/complex scatter plot - Ganzfeld
+simplecomplexganzfeldscatter <- ggplot(Ganzfeld_combined, aes(x = Time, y=Y, color=Simple_Complex)) +
+  geom_point() +
+  xlab("Time") +
+  labs(colour = "") +
+  ylab("") +
+  theme_classic() +
+  theme(text = element_text(size = 20),
+    axis.text.y=element_blank(),
+    axis.ticks.y=element_blank() 
+  ) +
+  scale_color_brewer(palette = "Pastel2") 
+
+#Plot simple/complex density plot - Ganzfeld
+simplecomplexganzfelddensity <- ggplot(Ganzfeld_combined, aes(x = Time, fill = Simple_Complex)) +
+  geom_density(alpha = 0.7) +
+  xlab("Time") +
+  labs("Condition") +
+  ylab("Density") +
+  labs(fill = "Hallucination type") +
+  scale_fill_brewer(palette = "Pastel2") +
+  scale_y_continuous(limits = c(0, NA)) +
+  theme_classic() +
+  theme(text = element_text(size = 20),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank() 
+  )
+
+#Make interim plot
+ganzplotSC <- ggarrange(simplecomplexganzfeldscatter, simplecomplexganzfelddensity, heights = c(1,4), ncol = 1, nrow = 2, common.legend = TRUE, legend = "bottom")
+
+#Plot simple/complex scatter plot - Flicker
+simplecomplexflickerscatter<- ggplot(flicker_combined, aes(x = Time, y=Y, color=Simple_Complex)) +
+  geom_point() +
+  xlab("Time") +
+  ylab("") +
+  labs(colour = "Hallucination type") +
+  theme_classic() +
+  theme(text = element_text(size = 20),
+    axis.text.y=element_blank(),
+    axis.ticks.y=element_blank() 
+  ) +
+  scale_color_brewer(palette = "Pastel2") 
+
+##Plot simple/complex density plot - Flicker
+simplecomplexflickerdensity<- ggplot(flicker_combined, aes(x = Time, fill = Simple_Complex)) +
+  geom_density(
+    alpha = 0.7) +
+  xlab("Time") +
+  labs("Condition") +
+  ylab("Density") +
+  labs(fill = "Hallucination type") +
+  scale_fill_brewer(palette = "Pastel2") +
+  scale_y_continuous(limits = c(0, NA)) +
+  theme_classic() +
+  theme(text = element_text(size = 20),
+    axis.text.y=element_blank(),
+    axis.ticks.y=element_blank() 
+  ) 
+
+#make interim plots
+flickerplotSC <- ggarrange(simplecomplexflickerscatter, simplecomplexflickerdensity, heights = c(1,4), ncol = 1, nrow = 2, common.legend = TRUE, legend = "bottom")
+
+#Combine interim plots
+plot <- ggarrange(flickerplotSC, ganzplotSC, ncol = 2, nrow = 1,  labels = c("Ganzflicker", "Ganzfeld"))
+```
+
+#### Find peaks of density plots - flicker
+
+```{r}
+#Max
+
+# Find the max value for "Simple" category
+max_simple <- which.max(density(flicker_combined$Time[flicker_combined$Simple_Complex == "Simple"])$y)
+max_simple_x<- density(flicker_combined$Time)$x[max_simple]
+cat('The first simple peak is:', max_simple_x, '\n')
+
+#Find second peak of simple
+# Find the density estimate for "Simple" Simple_Complex values
+simple_density <- density(flicker_combined$Time[flicker_combined$Simple_Complex == "Simple"])
+
+# Filter the density estimate for x values greater than 500
+filtered_simple_density <- simple_density$y[simple_density$x > 500]
+
+# Find the second maximum in the filtered density estimate
+secondmaxy <- max(filtered_simple_density)
+
+# Find the index of the second maximum in the filtered density estimate
+max_simple_2 <- which(filtered_simple_density == secondmaxy)
+
+# Find the corresponding x value
+max_simple_x_2 <- simple_density$x[simple_density$x > 500][max_simple_2]
+
+cat('The second simple peak is:', max_simple_x_2, '\n')
+
+
+# Find the max value for "Complex" category
+max_complex <- which.max(density(flicker_combined$Time[flicker_combined$Simple_Complex == "Complex"])$y)
+max_complex_x <- density(flicker_combined$Time)$x[max_complex]
+
+cat('The first complex peak is:', max_complex_x, '\n')
+
+#Find second peak of complex
+# Find the density estimate for "Simple" Simple_Complex values
+complex_density <- density(flicker_combined$Time[flicker_combined$Simple_Complex == "Complex"])
+
+# Filter the density estimate for x values greater than 500
+filtered_complex_density <- complex_density$y[complex_density$x > 500]
+
+# Find the second maximum in the filtered density estimate
+secondmaxy <- max(filtered_complex_density)
+
+# Find the index of the second maximum in the filtered density estimate
+max_complex_2 <- which(filtered_complex_density == secondmaxy)
+
+# Find the corresponding x value
+max_complex_x_2 <- complex_density$x[complex_density$x > 500][max_complex_2]
+
+cat('The second complex peak is:', max_complex_x_2, '\n')
+
+
+```
+
+#### Find peaks of density plots - Ganzfeld
+
+```{r}
+#Max
+
+# Find the max value for "Simple" category
+max_simple <- which.max(density(Ganzfeld_combined$Time[Ganzfeld_combined$Simple_Complex == "Simple"])$y)
+max_simple_x<- density(Ganzfeld_combined$Time)$x[max_simple]
+cat('The first simple peak is:', max_simple_x, '\n')
+
+#Find second peak of simple
+# Find the density estimate for "Simple" Simple_Complex values
+simple_density <- density(Ganzfeld_combined$Time[Ganzfeld_combined$Simple_Complex == "Simple"])
+
+# Filter the density estimate for x values greater than 500
+filtered_simple_density <- simple_density$y[simple_density$x > 500]
+
+# Find the second maximum in the filtered density estimate
+secondmaxy <- max(filtered_simple_density)
+
+# Find the index of the second maximum in the filtered density estimate
+max_simple_2 <- which(filtered_simple_density == secondmaxy)
+
+# Find the corresponding x value
+max_simple_x_2 <- simple_density$x[simple_density$x < 500][max_simple_2]
+
+cat('The second simple peak is:', max_simple_x_2, '\n')
+
+
+# Find the max value for "Complex" category
+max_complex <- which.max(density(Ganzfeld_combined$Time[Ganzfeld_combined$Simple_Complex == "Complex"])$y)
+max_complex_x <- density(Ganzfeld_combined$Time)$x[max_complex]
+
+cat('The first complex peak is:', max_complex_x, '\n')
+
+
+```
+
+#### Distributions write up
+
+To provide an exploratory generalised overview of the time course of simple and complex hallucinations in Ganzflicker and Ganzfeld, we show the probability distributions of simple and complex hallucinations (as defined as the time of a button press onset) in Figure 3. During Ganzflicker (A), simple hallucinations tended to have an earlier onset (peaking at 94 seconds) than complex hallucinations (peaking at 266 seconds). This pattern was also present for the Ganzfeld (B), though overall onset times were later than during Ganzflicker condition, with simple hallucinations peaking at 1155 seconds, and complex hallucinations peaking at 776 seconds. Interestingly, simple hallucinations seemed to show a bimodal distribution in both the Ganzflicker and the Ganzfeld, with a secondary peak at 520 seconds in the Ganzflicker and a secondary peak at 501 seconds in the Ganzfeld. Complex hallucinations also seemed to show a secondary peak during Ganzflicker at 749 seconds.
+
+
+## Count analysis 
+
+#### Models
+```{r}
+#tidying
+# add duration, to include as offset in glm.nb model
+hallucination_counts_model <- hallucination_counts
+hallucination_counts_model$duration <- ifelse(hallucination_counts_model$Condition=="Flicker", 15, 25)
+
+# condition; set ganzfeld as baseline
+hallucination_counts_model$Condition <- factor(hallucination_counts_model$Condition)
+contrasts(hallucination_counts_model$Condition) <- contr.treatment(levels(hallucination_counts_model$Condition), base=1)
+```
+
+```{r}
+#Set contrasts
+hallucination_counts_model$is_flicker <- ifelse(hallucination_counts_model$Condition=="Flicker",1,0)
+hallucination_counts_model$is_ganzfeld <- ifelse(hallucination_counts_model$Condition=="Ganzfeld",1,0)
+hallucination_counts_model$is_simple <- ifelse(hallucination_counts_model$Simple_Complex=="Simple",1,0)
+hallucination_counts_model$is_complex <- ifelse(hallucination_counts_model$Simple_Complex=="Complex",1,0)
+```
+
+did not converge - using different binom library than before
+```{r}
+library(glmmTMB)
+mm.nb.full.converge <- glmmTMB(Hallucination_Count ~ is_ganzfeld*is_simple + offset(log(duration)) + (1|Participant_Number),
+                               family = "nbinom2",
+                               data=hallucination_counts_model)
+tab_model(mm.nb.full.converge, show.se = TRUE, show.stat = TRUE)
+```
+
+
+```{r}
+### Ganzfeld contrast
+hallucination_counts_model$is_ganzfeld <- ifelse(hallucination_counts_model$Condition=="Flicker",0,1)
+mm.nb.full1 <- glmmTMB(Hallucination_Count ~ is_flicker*is_simple + offset(log(duration)) + (1|Participant_Number),
+                       family="nbinom2",
+                       data=hallucination_counts_model)
+tab_model(mm.nb.full1, show.se = TRUE, show.stat = TRUE)
+```
+
+```{r}
+##Complex contrast
+hallucination_counts_model$is_complex <- ifelse(hallucination_counts_model$Simple_Complex=="Complex",1,0)
+mm.nb.full2 <- glmmTMB(Hallucination_Count ~ is_flicker*is_complex + offset(log(duration)) + (1|Participant_Number),
+                       data=hallucination_counts_model,
+                       family = "nbinom2")
+tab_model(mm.nb.full2, show.se = TRUE, show.stat = TRUE)
+```
+
+```{r}
+### Simple contrast
+hallucination_counts_model$is_simple <- ifelse(hallucination_counts_model$Simple_Complex=="Complex",0,1)
+mm.nb.full3 <- glmmTMB(Hallucination_Count ~ is_ganzfeld*is_complex + offset(log(duration)) + (1|Participant_Number),
+                       family = "nbinom2",
+                       data=hallucination_counts_model)
+tab_model(mm.nb.full3, show.se = TRUE, show.stat = TRUE)
+```
+
+#### Chi squared and ratios for count
+```{r}
+##Do chi squared test
+contingency_table <- xtabs(Hallucination_Count ~ Simple_Complex + Condition, data = hallucination_counts)
+chisq.test(contingency_table)
+```
+#### Ratios
+```{r}
+flicker_simple_complex <- contingency_table[1]/contingency_table[2]
+cat('The ratio of simple:complex in flicker is', flicker_simple_complex, ':1', '\n')
+ganzfeld_simple_complex <- contingency_table[3]/contingency_table[4]
+cat('The ratio of simple:complex in Ganzfeld is', ganzfeld_simple_complex, ':1', '\n')
+```
+
+#### Write up - count
+
+We first compared the frequency of simple and complex hallucinations across flicker and Ganzfeld using negative binomial models. 
+
+We show that as expected in line with Hypothesis 2 (increased incidence of simple hallucinations compared to complex hallucinations), the rate of simple hallucinations was greater than the rate of complex hallucinations for both Ganzflicker (IRR=13.61, SE = 3.73, Z=9.54, p<0.001) and Ganzfeld (IRR=3.87, SE = 1.35, Z=3.27, p<0.001).
+
+Across conditions, the frequency of hallucinations was higher in flicker compared to Ganzfeld for simple hallucinations (IRR=5.75, SE = 1.29, Z=7.80, p<0.001) but not for complex hallucinations (IRR=0.61, SE = 0.19, Z=-1.58, p=0.115) hallucinations. There was also a significant interaction between condition and complexity (IRR=0.28, SE=0.11, Z=-3.27, p=0.001). Descriptively, the ratio of simple to complex hallucinations was 11.5:1 during Ganzflicker, whereas it was 4:1 during Ganzfeld. We then used a Chi-squared test to assess differences between these ratios, which again showed a significant association between hallucination complexity and experimental condition (X2 (1, N=735) =20.82, p<0.001).
+
+   To summarise, the frequency of simple hallucinations was greater than that the frequency of complex hallucination during both Ganzflicker and Ganzfeld, and simple hallucinations were more likely to occur in Ganzflicker compared in Ganzfeld. However, complex hallucinations were not more likely to occur in Ganzflicker compared to Ganzfeld: the likelihood of experiencing a complex hallucination was significantly higher during Ganzfeld than Ganzflicker.
+   
+```{r}
+#Test
+contrasts(hallucination_counts_model$Simple_Complex) <- contr.treatment(2)
+
+test <- glmmTMB(Hallucination_Count ~ Condition*Simple_Complex + offset(log(duration)) + (1|Participant_Number),
+                       family = "nbinom2",
+                       data=hallucination_counts_model)
+tab_model(test, show.se = TRUE, show.stat = TRUE)
+```
+  
+   
+#### Figure 4 - count
+
+```{r}
+#create proportional counts column 
+
+
+hallucination_counts$Proportional_count <- ifelse(hallucination_counts$Condition == "Ganzflicker",
+                                              hallucination_counts$Hallucination_Count / 15, #divide by 15 (mins) for flicker
+                                              hallucination_counts$Hallucination_Count / 25) #divide by 25 (mins) for ganzfeld
+
+# Create the plot - count
+p1<- ggplot(hallucination_counts, aes(x = Condition, y = Proportional_count, fill = Simple_Complex)) +
+  geom_boxjitter(jitter.shape = 21, jitter.color = NA,
+                 jitter.size = 3,
+                 outlier.colour = NULL, outlier.shape = NA,
+                 errorbar.draw = T) +
+  scale_fill_brewer(palette = "Pastel2") +
+  scale_color_brewer(palette = "Pastel2") +
+  ylim(0,1.5) +
+  labs(x = "", y = "Hallucinations  \n per min") +
+  scale_x_discrete(labels = c('Ganzflicker','Ganzfeld')) +
+  theme_classic() +
+  theme(text = element_text(size = 20),
+        axis.text.x = element_text(size = 20),
+        legend.position = "null")  # Set legend position to bottom
+
+p1
+
+ggsave("count.png", p1, width = 5.406, height = 4.656)
+
+```
+
+## Duration analyses
+
+```{r}
+#tidy
+d <- total
+# condition; set ganzfeld as baseline
+d$Condition <- factor(d$Condition)
+contrasts(d$Condition) <- contr.treatment(levels(d$Condition), base=2)
+
+# transform duration in minutes
+d$Duration <- d$Duration / 60
+
+# Remove 0 counts
+d[d$Duration==0,]
+d <- d[d$Duration>0,]
+
+```
+
+```{r}
+#Set up contrasts
+d$is_flicker <- ifelse(d$Condition=="Flicker",1,0)
+d$is_ganzfeld <- ifelse(d$Condition=="Flicker",0,1)
+d$is_complex <- ifelse(d$Simple_Complex=="Complex",1,0)
+d$is_simple <- ifelse(d$Simple_Complex=="Complex",0,1)
+```
+
+#### Models
+
+```{r}
+#Flicker contrast
+flicker <- glmer(Duration ~ is_flicker*is_simple + (1|Participant_Number),
+                 family=Gamma(link="log"),
+                 data=d,
+                 control=glmerControl(optimizer= c("bobyqa", "bobyqa"),
+                                      optCtrl = list(maxfun=1e5)))
+
+tab_model(flicker, show.se = TRUE, show.stat = TRUE)
+```
+
+```{r}
+### Ganzfeld contrast
+
+ganzfeld <- glmer(Duration ~ is_ganzfeld*is_simple + (1|Participant_Number),
+                  family=Gamma(link="log"),
+                  data=d,
+                  control=glmerControl(optimizer= c("bobyqa", "bobyqa"),
+                                       optCtrl = list(maxfun=1e5)))
+
+tab_model(ganzfeld, show.se = TRUE, show.stat = TRUE)
+```
+
+```{r}
+### Complex contrast
+
+complex <- glmer(Duration ~ Condition*is_complex + (1|Participant_Number),
+                 family=Gamma(link="log"),
+                 data=d,
+                 control=glmerControl(optimizer= c("bobyqa", "bobyqa"),
+                                      optCtrl = list(maxfun=1e5)))
+tab_model(complex, show.se = TRUE, show.stat = TRUE)
+```
+
+```{r}
+### Simple contrast
+simple <- glmer(Duration ~ Condition*is_simple + (1|Participant_Number),
+                family=Gamma(link="log"),
+                data=d,
+                control=glmerControl(optimizer= c("bobyqa", "bobyqa"),
+                                     optCtrl = list(maxfun=1e5)))
+
+
+tab_model(simple, show.se = TRUE, show.stat = TRUE)
+```
+
+#### Duration - write up
+
+We then tested if the average duration of hallucinations (i.e., the time from start to end button press) varied by content and visual stimulation condition using gamma mixed effects models with a log link function (Figure 4B). We did not have any a priori predictions about the results of this analysis. Across conditions, hallucinations were shorter in Ganzflicker compared to Ganzfeld for both simple (exp(β)=0.45, SE = 0.03, T=-11.48, p<0.001) and complex (exp(β)=0.64, SE = 0.11, T=-2.57, p=0.031) hallucinations. Within conditions, there was no significant difference in the duration of simple versus complex hallucinations during Ganzflicker (exp(β)=0.95, SE = 0.13, T=-0.35, p=0.730), though there was in Ganzfeld (exp(β)=1.42, SE=0.20, T=2.54, p=0.011), with simple hallucinations being marginally longer. There was also a significant interaction between condition and complexity (exp(β)=0.67, SE=0.13, T=-2.09, p=0.037).  Thus, the average duration of a reported hallucination was longer during  Ganzfeld than in Ganzflicker, and simple hallucinations tended to be longer than complex hallucinations, in particular in the Ganzfeld. 
+
+#### Figure 4 - duration
+```{r}
+durationaverage1 <-  aggregate(Duration ~ Participant_Number+Condition+Simple_Complex, total, mean, na.rm = TRUE)
+g <- ggplot(durationaverage1, aes(x = Condition, y = Duration, fill = Simple_Complex)) +
+  geom_boxjitter(jitter.shape = 21, jitter.color = NA,
+                 jitter.size = 3,
+                 outlier.colour = NULL, outlier.shape = NA,
+                 errorbar.draw = T) +  # Add this line to include notches
+  scale_fill_brewer(palette = "Pastel2") +
+  scale_color_brewer(palette = "Pastel2") +
+  labs(x = "", y = "Avg duration \n of hallucinations (sec)") +
+  theme_classic() +
+  ylim(0, 100) +
+  scale_x_discrete(labels = c('Ganzflicker', 'Ganzfeld')) +
+  theme(text = element_text(size = 20),
+        axis.text.x = element_text(size = 20),
+        legend.position = "none")  # Set legend position to bottom
+
+
+g
+
+ggsave("duration.png", g, width = 5.406, height = 4.656)
+```
+## Correlations
+
+#### Figure 5
+
+```{r}
+
+#Merge count and duration
+count_new <- spread(hallucination_counts, key = Condition, value = Hallucination_Count)
+count_new$Proportional_count_flicker <- count_new$Flicker/15
+count_new$Proportional_count_ganzfeld <- count_new$Ganzfeld/25
+count_new$Simple_Complex <- NULL
+count_new$Proportional_count <- NULL
+count_new <- aggregate(count_new[, 2:5], 
+                           by = list(Participant_Number = count_new$Participant_Number), 
+                           FUN = function(x) sum(ifelse(is.na(x), 0, x)))
+cor.test(count_new$Proportional_count_flicker, count_new$Proportional_count_ganzfeld, method="spearman")
+
+
+countplot <- ggscatter(count_new, x = "Proportional_count_flicker", y = "Proportional_count_ganzfeld", 
+                       cor.method = "spearman", add = "reg.line", conf.int = TRUE, 
+                       cor.coef = TRUE,
+                       cor.coef.size = 6,
+                       xlab = "No. of Ganzflicker hallucinations \n per min", ylab = "No. of Ganzfeld hallucinations \n per min") +
+  theme(text = element_text(size = 15))
+
+
+#Avg duration
+duration_new <- durationaverage
+duration_new <- spread(duration_new, key = Condition, value = Duration)
+
+duration_new$Simple_Complex <- NULL
+
+duration_avg <- aggregate(duration_new[, 2:3], 
+                          by = list(Participant_Number = duration_new$Participant_Number), 
+                          FUN = function(x) sum(ifelse(is.na(x), 0, x)))
+cor.test(duration_avg$Flicker, duration_avg$Ganzfeld, method="spearman")
+
+
+durationplot <- ggscatter(duration_avg, x = "Flicker", y = "Ganzfeld", 
+                          cor.method = "spearman", add = "reg.line", conf.int = TRUE, 
+                          cor.coef = TRUE,
+                         cor.coef.size = 7,
+                          xlab = "Avg. duration of Ganzflicker hallucinations (s)", ylab = "Avg. duration of Ganzfeld hallucinations (s)") # +
+  theme(text = element_text(size = 15))  # Increase text size to 20
+
+#add proportional duration
+durationtotal$prop_duration <- ifelse(durationtotal$Condition == "Flicker", (durationtotal$Duration/60)/15, (durationtotal$Duration)/60/25)
+
+duration_total1 <- durationtotal
+duration_total1$Duration <- NULL
+
+duration_total1 <- spread(duration_total1, key = Condition, value = prop_duration)
+
+duration_total1$Simple_Complex <- NULL
+
+duration_total1 <- aggregate(duration_total1[, 2:3], 
+                          by = list(Participant_Number = duration_new$Participant_Number), 
+                          FUN = function(x) sum(ifelse(is.na(x), 0, x)))
+cor.test(duration_total1$Flicker, duration_total1$Ganzfeld, method="spearman")
+
+
+durationplot1 <- ggscatter(duration_total1, x = "Flicker", y = "Ganzfeld", 
+                          cor.method = "spearman", add = "reg.line", conf.int = TRUE, 
+                          cor.coef = TRUE,
+                          cor.coef.size = 6,
+                          xlab = "Prop. duration \n of Ganzflicker hallucinations (s)", ylab = "Prop. duration \n of Ganzfeld hallucinations (s)") +
+  theme(text = element_text(size =15))  # Increase text size to 20
+
+
+
+
+plot1 <- ggarrange(countplot, durationplot1)
+```
+
+#### Write up - button press correlations
+
+To investigate whether people who reported more hallucinations when looking at Ganzflicker also reported more hallucinations during the Ganzfeld, we ran Spearman’s rank correlation analyses between our button press measures. When combining the frequency and duration of hallucinations into a combined measure of overall time spent hallucinating during the visual stimulation session, (total proportional duration time spent hallucinating), we found a positive correlation between experiences during the Ganzflicker and Ganzfeld, providing evidence for Hypothesis 4 (people who are more hallucination-prone and experience more hallucinations from Ganzflicker should also experience more hallucinations during the Ganzfeld)  (rs(28)= 0.46, p=0.01, Figure 5). The correlation between the frequency of Ganzflicker hallucinations and the frequency of Ganzfeld hallucinations was also significant (rs(28)= 0.55, p=0.0016). The correlation between the average duration of Ganzfeld and Ganzflicker hallucinations was not significant (rs(28)= 0.35, p=0.056).
+
+## ASC analyses
+
+```{r}
+#Tidy 
+# Convert condition to factor
+ASC$Condition <- factor(ASC$Condition)
+
+#Set contrast coding scheme for condition to baseline
+contrasts(ASC$Condition) <- contr.treatment(levels(ASC$Condition), base=2)
+
+#rename
+
+ASC <- ASC %>%
+  rename(
+    ASC.dimension = `ASC dimension`,
+    Average.score = `Average score`,
+    Participant.number = `Participant number`
+  )
+```
+
+```{r}
+#define contrasts
+ASC$is_flicker <- ifelse(ASC$Condition=="Flicker",1,0)
+ASC$is_ganzfeld <- ifelse(ASC$Condition=="Flicker",0,1)
+ASC$is_complex <- ifelse(ASC$ASC.dimension=="Complex imagery",1,0)
+ASC$is_simple <- ifelse(ASC$ASC.dimension=="Complex imagery",0,1)
+```
+
+#### Models
+```{r}
+flickerasc <- lmer(Average.score ~ is_flicker*is_simple + (1|Participant.number),
+                   data=ASC)
+tab_model(flickerasc, show.se = TRUE, show.stat = TRUE)
+```
+
+```{r}
+
+#ganzfeld contrast
+
+
+ganzfeldasc <- lmer(Average.score ~ is_simple*is_ganzfeld + (1|Participant.number),
+                    data=ASC)
+
+tab_model(ganzfeldasc, show.se = TRUE, show.stat = TRUE)
+```
+
+```{r}
+#complex contrast
+
+
+complexasc <- lmer(Average.score ~ is_ganzfeld*is_complex + (1|Participant.number),
+                   data=ASC)
+
+tab_model(complexasc, show.se = TRUE, show.stat = TRUE)
+```
+
+
+```{r}
+
+simpleasc <- lmer(Average.score ~ is_flicker*is_complex + (1|Participant.number),
+                  data=ASC)
+tab_model(simpleasc, show.se = TRUE, show.stat = TRUE)
+```
+
+#### Write up - ASC
+
+Button presses provide a direct and objective measure of hallucination frequency, onset, and offset. However, they may be affected by non-experiential variables such as the criterion for when to press (i.e., some people may press for a very faint experience, while others may press only for a very vivid experience). Therefore, we validated our button press findings with subjective hallucination intensity as measured through retrospective questionnaires. 
+
+Using linear mixed effects models, we show that within conditions in the ASC, Elementary imagery scores were higher than Complex Imagery scores in Ganzflicker (β = 41.60, SE = 5.79, T= 7.18, p<0.001) and Ganzfeld (β = 25.15, SE = 5.79, T= 4.34, p<0.001) (Figure 4C) 
+
+Across conditions, Elementary Imagery scores were greater in Ganzflicker compared to Ganzfeld (β = 25.62, SE = 5.79, T=4.42, p=0.083). Complex Imagery scores were numerically higher in Ganzflicker than in Ganzfeld, though this was not significant (β = 9.17, SE = 5.79, T=1.58, p=0.116). There was also a significant interaction effect between condition and complexity (β=16.45, SE=8.2, T=2.01, p=0.047). To summarise, the ASC scores pertaining to Elementary Imagery were higher in Ganzflicker than in Ganzfeld, and ASC Elementary Imagery scores were greater than Complex Imagery in both conditions. In addition, participants were more likely to have higher Complex Imagery scores during Ganzfeld compared to Ganzflicker.
+
+#### Figure 4 - ASC
+
+```{r}
+a<- ggplot(ASC, aes(x = Condition, y = Average.score, fill = ASC.dimension)) +
+  geom_boxjitter(jitter.shape = 21, jitter.color = NA,
+                 jitter.size = 3,
+                 outlier.colour = NULL,
+                 outlier.shape = NA,
+                 errorbar.draw = TRUE) +
+  scale_fill_brewer(palette = "Pastel2") +
+  scale_color_brewer(palette = "Pastel2") +
+  labs(x = "", y = "Avg \nASC score") +
+  theme_classic() +
+    ylim(0,100) +
+  scale_x_discrete(labels = c('Ganzflicker','Ganzfeld')) +
+  theme(text = element_text(size = 20),
+        axis.text.x = element_text(size = 20),
+        legend.position = "null")  # Set legend position to bottom
+
+a
+
+ggsave("ASC.png", a, width = 5.406, height = 4.656)
+
+```
+
+## IEQ analyses
+
+```{r}
+#clean data
+# Convert condition to factor
+IEQ$Condition <- factor(IEQ$Condition)
+
+
+#rename
+IEQ <- IEQ %>%
+  rename(
+    IEQ.dimension = `IEQ dimension`,
+    Average.score = `Average score`,
+    Participant.number = `Participant number`
+  )
+
+#Set contrast coding scheme for condition to baseline
+contrasts(IEQ$Condition) <- contr.treatment(levels(IEQ$Condition), base=2)
+IEQ$is_flicker <- ifelse(IEQ$Condition=="Flicker",1,0)
+IEQ$is_ganzfeld <- ifelse(IEQ$Condition=="Flicker",0,1)
+IEQ$is_complex <- ifelse(IEQ$IEQ.dimension=="Complex imagery",1,0)
+IEQ$is_simple <- ifelse(IEQ$IEQ.dimension=="Complex imagery",0,1)
+
+
+```
+
+#### Models
+```{r}
+#flicker contrast
+
+
+flickerIEQ <- lmer(Average.score ~ is_simple*is_flicker + (1|Participant.number),
+                   data=IEQ)
+
+tab_model(flickerIEQ, show.se = TRUE, show.stat = TRUE)
+```
+
+```{r}
+#ganzfeld contrast
+
+
+ganzfeldIEQ <- lmer(Average.score ~ is_simple*is_ganzfeld + (1|Participant.number),
+                    data=IEQ)
+tab_model(ganzfeldIEQ, show.se = TRUE, show.stat = TRUE)
+```
+
+```{r}
+#complex contrast
+
+
+complexIEQ <- lmer(Average.score ~ is_ganzfeld*is_complex + (1|Participant.number),
+                   data=IEQ)
+tab_model(complexIEQ, show.se = TRUE, show.stat = TRUE)
+```
+
+```{r}
+#simple contrast
+
+
+simpleIEQ <- lmer(Average.score ~ is_flicker*is_complex + (1|Participant.number),
+                  data=IEQ)
+tab_model(simpleIEQ, show.se = TRUE, show.stat = TRUE)
+```
+
+#### IEQ - Write up
+
+We found a similar pattern in the IEQ to the ASC (Figure 4D). Using linear mixed effects models, we showed that within conditions, Simple Imagery scores were significantly higher than Complex Imagery scores both during Ganzflicker (β=3.08, SE=0.32, T=9.70, p<0.001) and Ganzfeld (β=1.29, SE=0.32, T=4.06, p<0.001). 
+
+Across conditions, Simple Imagery scores were higher in Ganzflicker compared to Ganzfeld (β=2.11, SE=0.32, T=6.63, p<0.001). Though Complex Imagery scores were higher in Ganzflicker compared to Ganzfeld, this was not statistically significant (β=0.32, SE =0.32, T=1.00, p=0.321). There was also a significant interaction between IEQ dimension and condition, suggesting that the likelihood of having a higher Complex Imagery score in the IEQ is greater during Ganzfeld than in Ganzflicker, again providing further evidence for Hypothesis 3b (β=1.79, SE=0.45, T=3.98, p=0.001). 
+
+#### Figure 4 - IEQ
+
+```{r}
+I<- ggplot(IEQ, aes(x = Condition, y = Average.score, fill = IEQ.dimension)) +
+  geom_boxjitter(jitter.shape = 21, jitter.color = NA,
+                 jitter.size = 3,
+                 outlier.colour = NULL,
+                 outlier.shape = NA,
+                 errorbar.draw = TRUE) +
+  scale_fill_brewer(palette = "Pastel2") +
+  scale_color_brewer(palette = "Pastel2") +
+  labs(x = "", y = "Avg \n IEQ score") +
+  theme_classic() +
+    ylim(0,6) +
+  scale_x_discrete(labels = c('Ganzflicker','Ganzfeld')) +
+    theme(text = element_text(size = 20),
+        axis.text.x = element_text(size = 20),
+        legend.position = "null")  # Set legend position to bottom
+
+I 
+
+ggsave("IEQ.png", I, width = 5.406, height = 4.656)
+
+```
+
+
+## IEQ correlation between flicker and ganzfeld
+
+```{r}
+#ASC - remake data frame
+Imagerycor <- data$Imagery
+
+Imagerycor <- Imagerycor %>%
+  pivot_wider(names_from = Experience, values_from = Average)
+Imagerycor <- Imagerycor[,c(1,13:14)]
+Imagerycor <- aggregate( .~`Participant number` , data=Imagerycor, max, na.rm=TRUE, na.action = NULL)
+
+#Keep only 08 onwards
+Imagerycor <- Imagerycor [-c(1:7), ]
+
+
+#correlation
+Imagerycorplot <- ggscatter(Imagerycor, x = "Flicker", y = "Ganzfeld",
+                                     cor.method = "spearman", add = "reg.line", conf.int = TRUE, 
+                                     cor.coef = TRUE,
+                                     cor.coef.size = 7,
+                                     cor.coeff.args = list(label.y = 0.75), 
+                          xlab = "Ganzflicker avg. IEQ ", ylab = "Ganzfeld avg. IEQ") #+
+                           #theme(text = element_text(size = 25))  # Increase text size to 20
+
+Imagerycorplot
+```
+
+
+## ASC correlation between flicker and ganzfeld
+```{r}
+#ASC - remake data frame
+ASCcor <- data$`5D-ASC`
+
+ASCcor <- ASCcor %>%
+  pivot_wider(names_from = Experience, values_from = Average)
+
+ASCcor <- ASCcor[,c(1,10:11)]
+
+
+ASCcor <- aggregate( .~`Participant number` , data=ASCcor, max, na.rm=TRUE, na.action = NULL)
+
+#Keep only 08 onwards
+ASCcor <- ASCcor [-c(1:7), ]
+
+#correlation
+ASCcorplot <- ggscatter(ASCcor, x = "Flicker", y = "Ganzfeld",
+                                     cor.method = "spearman", add = "reg.line", conf.int = TRUE, 
+                                     cor.coef = TRUE,
+                                     cor.coef.size = 7,
+                                     cor.coeff.args = list(label.y = 0.75), 
+                          xlab = "Ganzflicker avg. ASC ", ylab = "Ganzfeld avg. ASC") #+
+                           #theme(text = element_text(size = 25))  # Increase text size to 20
+
+ASCcorplot
+
+```
+
+#### IEQ/ASC write up
+We also carried out correlations between total ASC and IEQ scores across conditions in order to validate our observed correlations between Ganzfeld and Ganzflicker button press measures. We found a positive correlation between average IEQ scores assesing Ganzflicker and average IEQ scores assessing Ganzfeld (Hypothesis 4; r(28)= 0.55, p=0.0015), although the correlation in the ASC was not statistically significant (rs(28)= 0.28, p=0.14)
+
+
+## Supplementary Figure 3/age
+```{r}
+###AGE CORRELATION ###
+
+#Import dates of birth
+details <- data$Details 
+
+#Merge with counts
+agecountduration <- merge(hallucination_counts,details,by="Participant_Number")
+
+
+#Merge average duration and proportional duration
+durationtotal_merge <- durationtotal
+durationtotal_merge$Duration <- NULL
+durationaverage_merge <- durationaverage
+colnames(durationaverage_merge)[colnames(durationaverage_merge) == "Duration"] <- "Avg_duration"
+durations <- merge(durationaverage_merge, durationtotal_merge,by=c("Participant_Number", "Simple_Complex", "Condition"))
+
+#Merge hallucination count, durations and age
+agecountduration <- merge(agecountduration,durations,by=c("Participant_Number", "Simple_Complex", "Condition"))
+
+#Collapse simple and complex
+agecountduration$Simple_Complex <- NULL
+agecountduration <- aggregate(cbind(Hallucination_Count, Avg_duration, prop_duration) ~ Participant_Number + Condition + DOB + Gender + Experiment_Date, data = agecountduration, FUN = sum)
+
+
+# Convert the DOB column into a date format
+agecountduration$DOB <- ymd(agecountduration$DOB)
+
+# Calculate the age of each person
+agecountduration$age <- as.numeric(difftime(agecountduration$Experiment_Date, agecountduration$DOB, units = "days")/365.25)
+
+
+#Split DF
+# Split the dataframe into two separate dataframes based on the values in the Condition column
+flicker_df <- subset(agecountduration, Condition == "Flicker")
+ganzfeld_df <- subset(agecountduration, Condition == "Ganzfeld")
+
+
+#Plot flicker against age
+ageplotcountflicker <- ggscatter(flicker_df, x = "age", y = "Hallucination_Count", 
+                                 cor.method = "spearman", add = "reg.line", conf.int = TRUE, 
+                                 cor.coef = TRUE,
+                          xlab = "Age ", ylab = "Number of \n ganzflicker hallucinations")
+
+
+
+durationplotcountflicker <- ggscatter(flicker_df, x = "age", y = "prop_duration",
+                                      cor.method = "spearman", add = "reg.line", conf.int = TRUE, 
+                                      cor.coef = TRUE,
+                                 xlab = "Age ", ylab = "Prop. duration of \n ganzflicker hallucinations (s)")
+
+durationavgplotcountflicker <- ggscatter(flicker_df, x = "age", y = "Avg_duration",
+                                      cor.method = "spearman", add = "reg.line", conf.int = TRUE, 
+                                      cor.coef = TRUE,
+                                      xlab = "Age ", ylab = "Avg. duration of \n ganzflicker hallucinations (s)")
+
+g <- ggarrange(ageplotcountflicker, durationplotcountflicker, durationavgplotcountflicker, ncol = 1, nrow = 3, common.legend = TRUE, legend = "bottom")
+
+g
+
+#Plot ganzfeld against age
+ageplotcountganzfeld <- ggscatter(ganzfeld_df, x = "age", y = "Hallucination_Count",
+                                     cor.method = "spearman", add = "reg.line", conf.int = TRUE, 
+                                     cor.coef = TRUE,
+                                    # cor.coef.size = 7,
+                                     cor.coeff.args = list(label.y = 25), 
+                                     xlab = "Age ", ylab = "Number of \n Ganzfeld hallucinations") #+
+  #theme(text = element_text(size = 25))  # Increase text size to 20
+
+
+
+ageplotdurationganzfeld <- ggscatter(ganzfeld_df, x = "age", y = "prop_duration",
+                                     cor.method = "spearman", add = "reg.line", conf.int = TRUE, 
+                                     cor.coef = TRUE,
+                                     #cor.coef.size = 7,
+                                     cor.coeff.args = list(label.y = 0.75), 
+                          xlab = "Age ", ylab = "Prop. duration of \n  Ganzfeld hallucinations") #+
+                           #theme(text = element_text(size = 25))  # Increase text size to 20
+
+
+
+
+ageplotavgdurationganzfeld <- ggscatter(ganzfeld_df, x = "age", y = "Avg_duration",
+                                  cor.method = "spearman", add = "reg.line", conf.int = TRUE, 
+                                  cor.coef = TRUE,
+                                  #cor.coef.size = 7,
+                                  xlab = "Age ", ylab = "Avg duration of \n Ganzfeld hallucinations") #+
+                                  #theme(text = element_text(size = 25))  # Increase text size to 20
+
+
+gf <- ggarrange(ageplotcountganzfeld, ageplotdurationganzfeld, ncol = 2, nrow = 1, common.legend = TRUE, legend = "bottom")
+
+gf
+```
+
+
+#### Age write up
+
+There was a positive correlation between the number of Ganzfeld hallucinations and age (rs(28)=0.43, p=0.018) and the proportional duration of Ganzfeld hallucinations and age (rs(28)=0.43, p=0.019). There were no correlations found between the number, proportional duration or average duration of Ganzflicker hallucinations and age, or the average duration of Ganzfeld hallucinations and age.
+
+
+## Supplementary Figure 2/button-press/interference
+```{r, message=FALSE}
+
+#Import from .mat files and create data frame
+merged_data <- data.frame()
+
+setwd("/Users/orisshenyan/Documents/OneDrive - University College London/PhD/Ganzfeld/Data/")
+
+# Loop through each folder from 08 to 24
+for (i in c("08", "09", 10:38)) {
+  # Get the folder name
+  folder_name <- paste0(i)
+  
+  # Get the file names
+  file_names <- c(paste0(folder_name, "Ganzfeld_sleepyinterfere.csv"), paste0(folder_name, "Flicker_sleepyinterfere.csv"))
+  
+  # Loop through each file and read it into a data frame
+  for (j in 1:length(file_names)) {
+    file_path <- file.path(folder_name, file_names[j])
+    if (file.exists(file_path)) {
+      data1 <- read.csv(file_path)
+      
+      # Add a new column to indicate whether the file came from a "Ganzfeld" .csv or a "Flicker" .csv
+      if (grepl("Ganzfeld", file_names[j])) {
+        data1$Condition <- "Ganzfeld"
+      } else if (grepl("Flicker", file_names[j])) {
+        data1$Condition <- "Flicker"
+      }
+      
+      # Append the data to the merged_data data frame
+      merged_data <- rbind(merged_data, data1)
+    }
+  }
+}
+
+
+# Replace '8' with '08' and '9' with '09' in the Participant_Number column
+merged_data$Participant_Number <- ifelse(merged_data$Participant_Number == '8', '08',
+                                         ifelse(merged_data$Participant_Number == '9', '09',
+                                                merged_data$Participant_Number))
+
+#Merge with counts
+agecountdurationsleep <- merge(agecountduration,merged_data,by=c("Participant_Number", "Condition"))
+
+```
+
+
+```{r}
+ #Turn into rank
+agecountdurationsleep$sleep_cor<- agecountdurationsleep$Sleepiness+1
+agecountdurationsleep$interfere_cor<- agecountdurationsleep$Interference+1
+```
+
+```{r}
+#Sleepiness - test
+agecountdurationsleep <- agecountdurationsleep[agecountdurationsleep$Participant_Number != 21, ]
+agecountdurationsleep <- agecountdurationsleep[agecountdurationsleep$Participant_Number != 14, ]
+
+wilcox.test(Sleepiness ~ Condition, data = agecountdurationsleep, paired = TRUE)
+
+#Sleepiness - plot 
+# Create the plot -sleepiness
+
+
+
+
+my_colors <- c("darkred", "darkblue")
+
+y<- ggplot(agecountdurationsleep, aes(x = Condition, y = Sleepiness, fill = Condition)) +
+  geom_boxjitter(jitter.shape = 21, jitter.color = NA,
+                 outlier.colour = NULL, outlier.shape = NA,
+                 errorbar.draw = T,
+                 errorbar.length = 0.2) +
+  scale_fill_manual(values = my_colors) +
+  scale_color_manual(values = my_colors)  +
+  labs(x = NULL , y = "Perception of sleepiness (0-6)") +
+  scale_x_discrete(labels = c('Ganzflicker','Ganzfeld')) +
+  theme_classic() +
+  theme(text = element_text(size = 18))
+
+
+y <- y + theme(legend.position = "none")
+
+# Add the p-value brackets
+y <- y +
+  geom_signif(
+    xmin = 1, #order is flickertest, simpletest, ganzfeldtest, complextest
+    xmax = 2,
+    y_position = 6,
+    annotation = "***",
+    tip_length = 0.01, textsize = 5, vjust = 0.2,
+    map_signif_level = FALSE,
+    bracket_line_height = unit(0.2, "cm"),
+    bracket_x = 1.5
+  ) 
+
+y
+```
+
+```{r}
+
+#Interference - remove people with no response
+agecountdurationsleep <- agecountdurationsleep[!agecountdurationsleep$Participant_Number %in% c(10, 11, 16, 17, 24), ]
+
+#Interference - test
+wilcox.test(Interference ~ Condition, data = agecountdurationsleep, paired = TRUE)
+
+#Create the plot
+
+p<- ggplot(agecountdurationsleep, aes(x = Condition, y = Interference, fill = Condition)) +
+  geom_boxjitter(jitter.shape = 21, jitter.color = NA,
+                 outlier.colour = NULL, outlier.shape = NA,
+                 errorbar.draw = T,
+                 errorbar.length = 0.2) +
+  scale_fill_manual(values = my_colors) +
+  scale_color_manual(values = my_colors)  +
+  labs(x = NULL , y = "Perception of Interference (0-6)") +
+  scale_x_discrete(labels = c('Ganzflicker','Ganzfeld')) +
+  theme_classic() +
+  theme(text = element_text(size = 18))
+
+
+p <- p + theme(legend.position = "none")
+
+# Add the p-value brackets
+p <- p +
+  geom_signif(
+    xmin = 1, #order is flickertest, simpletest, ganzfeldtest, complextest
+    xmax = 2,
+    y_position = 6.25,
+    annotation = "ns",
+    tip_length = 0.01, textsize = 5, vjust = 0.2,
+    map_signif_level = FALSE,
+    bracket_line_height = unit(0.2, "cm"),
+    bracket_x = 1.5
+  ) 
+
+p
+ggarrange(y, p, labels = c("A", "B"))
+
+```
+#### Supplementary figure 3
+```{r}
+ggarrange(y,p, labels =c("A", "B"))
+
+```
+
+```{r}
+#Correlations
+#create data frame
+agecountdurationsleep <- merge(agecountdurationsleep,merged_data,by=c("Participant_Number", "Condition"))
+```
+
+```{r}
+#Sleepiness correlations
+sleepduration <- ggscatter(agecountdurationsleep, x = "sleep_cor", y = "prop_duration", 
+                         add = "reg.line",
+                         cor.coef = TRUE, cor.method = "spearman",
+                         xlab = "Subjective perception of sleepiness (+1)", ylab = "Prop. duration of hallucinations")
+
+
+sleepcount <- ggscatter(agecountdurationsleep, x = "sleep_cor", y = "Hallucination_Count", 
+                           add = "reg.line",
+                           cor.coef = TRUE, cor.method = "spearman",
+                           xlab = "Subjective perception of sleepiness (+1)", ylab = "Number of hallucinations")
+```
+
+```{r}
+ggscatter(agecountdurationsleep, x = "sleep_cor", y = "prop_duration", 
+                        add = "reg.line",
+                        cor.coef = TRUE,
+                        cor.method = "spearman",
+                        cor.coef.size = 7,
+          
+                        xlab = "Subjective perception of sleepiness (+1)", ylab = "Prop. duration of hallucination") +
+  theme(text = element_text(size = 18))
+
+
+#ggarrange(sleepduration, sleepcount, sleepdurationavg, ncol = 1, nrow = 3)
+```
+
+```{r}
+#Interference correlations
+
+interferecount  <- ggscatter(agecountdurationsleep, x = "interfere_cor", y = "Hallucination_Count", 
+                             add = "reg.line",
+                             cor.coef = TRUE, cor.method = "spearman",
+                             xlab = "Subjective perception of interference (+1)", ylab = "Number of hallucinations")
+
+
+
+interfereduration  <- ggscatter(agecountdurationsleep, x = "interfere_cor", y = "prop_duration", 
+                             add = "reg.line",
+                             cor.coef = TRUE, cor.method = "spearman",
+                             xlab = "Subjective perception of interference (+1)", ylab = "Proportional duration of hallucinations")
+
+interferedurationavg  <- ggscatter(agecountdurationsleep, x = "interfere_cor", y = "Avg_duration", 
+                                add = "reg.line",
+                                cor.coef = TRUE, cor.method = "spearman",
+                                xlab = "Subjective perception of interference (+1)", ylab = "Average duration of hallucinations")
+
+
+ggarrange(interfereduration, interferecount, interferedurationavg, ncol = 1, nrow = 3)
+
+#Moderation analysis
+```
+#### Button press/ sleepy write up
+
+Thus, retrospective questionnaire measures largely replicated the results obtained with button press and hallucination prompts. In addition, we sought to explore whether participants felt that the button press interfered with their experience, e.g. through decreasing the duration of hallucinations - specifically in the Ganzfeld, which may require a higher degree of immersion for hallucinations to occur. We did not observe any evidence that the button presses interfered with the occurrence of hallucinations - there were no correlations (p>0.05) in an exploratory analysis between our button-press measures and participants’ perception of the interference of the button press, nor were there any differences between perception of button press interference experience across the conditions (Full details given for analysis in Supplementary materials – Button press interference and sleepiness, V=74, p=0.774, Supplementary Figure 2B). 
+
+We further explored the relationship between participants’ assesment of their sleepiness during their experience and their button-press measures. Our rationale for this was that sleepiness may affect proneness to hallucinations – i.e., in hypnagogia, 
+and may vary across the Ganzflicker and Ganzfeld condition. 
+
+Details for this analysis are given in full in the Supplementary materials – Button press interference and sleepiness. In brief, paired Wilcoxon signed rank tests suggested that participants felt significantly sleepier in Ganzfeld than in Ganzflicker (V=14, p<0.001, Supplementary Figure 2A). There was also a negative correlation between sleepiness and the total proportional time spent hallucinating (i.e. as people felt more sleepy, they spent less time in total hallucinating) (rs(36)=-0.35, p=0.0019). No other correlations between button press measures and sleepiness measures were significant (p>0.05), so this factor is unlikely to have driven all condition differences - TO DO - moderation analysis
+
+## table 1/Word frequency analysis
+```{r}
+Hallucinations<- data$Button_press_simple_complex
+Open_Interview <- data$`Open interviews`
+
+# Define custom stopwords as a vector
+custom_stopwords <- c("screen", "orange", "black", "red","vision", "visual", "field", "coming", "light")
+
+# Concatenate custom stopwords with the stop_words dataset
+stop_words <- bind_rows(stop_words, data_frame(word = custom_stopwords))
+
+# Create a subset of the Hallucinations dataframe for Participant_Number 08 onwards
+Hallucinations_subset <- Hallucinations[61:nrow(Hallucinations),]
+
+# Split the subset based on the Simple_Complex and Condition columns
+subset_list <- split(Hallucinations_subset, list(Hallucinations_subset$Simple_Complex, Hallucinations_subset$Condition))
+
+# Define a function to convert the Notes column to a tidy format and remove stop words
+tidy_notes <- function(df) {
+  df %>% unnest_tokens(word, Notes) %>% anti_join(stop_words)
+}
+
+# Define a function to count the frequency of each word in a dataframe and calculate percentage of total words
+word_count <- function(df) {
+  word_counts <- df %>% count(word, sort = TRUE)
+  total_words <- sum(word_counts$n)
+  word_counts <- word_counts %>% mutate(percentage = round(n/total_words * 100, 2))
+  return(word_counts)
+}
+
+# Perform text analysis for each subset dataframe and store the results in a list
+word_count_list <- lapply(subset_list, function(df) {
+  tidy_notes(df) %>% word_count()
+})
+
+# Create a list of subset names based on the Simple_Complex and Condition columns
+subset_names <- paste0(names(subset_list), "_word_counts")
+
+# Combine the subset names and word count dataframes into a named list
+word_count_named_list <- setNames(word_count_list, subset_names)
+
+# View the top 10 most frequently used words for each subset based on frequency counts
+lapply(word_count_named_list, head, 11)
+```
+
+## Word cloud/figure 7
+
+```{r}
+#Word cloud
+
+# Define custom stopwords as a vector
+custom_stopwords_open <- c("screen", "But", "flashing", "It", "orange", "black", "ganzfeld", "When", "For","Then","then","That", "Ganzfeld", "The", "There", "it", "Then", "It", "flicker", "lot",  "bit", "eyes", "happened",'10', 'beginning',"hallucination", "start", "started", "red",
+                      "appeared",  "balls", "light","flicker","ping","pong","there", "yeah", "button", "and", 'experiment', "didnt", "dont", "wasnt", "theyre")
+
+
+# Concatenate custom stopwords with the stop_words dataset
+stop_words2 <- bind_rows(stop_words, data_frame(word = custom_stopwords_open))
+
+
+Open_Interview <- data$`Open interviews`
+# Create a subset of the Open_Interview dataframe for Flicker and Ganzfeld experiences
+Open_Interview_Flicker <- Open_Interview %>% filter(Experience == "Flicker" )
+
+# Word cloud for Open_Interview_Ganzfeld
+
+words_flicker <- Open_Interview_Flicker$Interview
+words_flicker <- Corpus(VectorSource(words_flicker))
+
+#Clean data
+corpus <- tm_map(words_flicker, content_transformer(tolower))
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removePunctuation)
+
+# Create a mapping dictionary
+word_mapping <- c("shapes" = "shape", "colours" = "colour", "patterns" = "pattern", "faded" = "fade", "circles" = "circle", "changing" = "change")
+
+# Replace words based on the mapping
+corpus <- tm_map(corpus, content_transformer(function(x) {
+  for (key in names(word_mapping)) {
+    x <- gsub(key, word_mapping[key], x)
+  }
+  x
+}))
+
+
+#create vector from tibble
+stop_words2_vector <- stop_words2$word
+
+# Word cloud for Open_Interview_Flicker
+words_flicker2 <- tm_map(corpus, removeWords, stop_words2_vector)
+
+# Generate word cloud
+set.seed(43)
+wordcloud(words_flicker2, max.words=92, color='darkred',random.order = FALSE)
+
+```
+
+```{r}
+# Create a term-document matrix
+tdm <- TermDocumentMatrix(words_flicker2)
+
+# Convert the term-document matrix into a matrix
+m <- as.matrix(tdm)
+
+# Get word frequencies
+word_freqs <- rowSums(m)
+
+# Create a data frame of words and their frequencies
+word_freqs_df <- data.frame(word = names(word_freqs), freq = word_freqs)
+
+# Sort the data frame by frequency in descending order
+word_freqs_df <- word_freqs_df[order(-word_freqs_df$freq), ]
+
+# Add a column for the percentage frequency
+word_freqs_df$percentage <- word_freqs_df$freq / sum(word_freqs_df$freq) * 100
+
+
+
+
+# Print the word frequency table
+top50_flicker<- word_freqs_df[1:100,]
+
+# Create a new column in the desired format
+top50_flicker$word_n_pct <- paste(top50_flicker$word, ", ", top50_flicker$freq, " (", round(top50_flicker$percentage, 2), "%)", sep = "")
+
+
+```
+
+```{r}
+library(knitr)
+kable(top50_flicker, caption = "Top 92 words in Ganzflicker open interviews")
+```
+
+
+```{r}
+#Word cloud - NOT WORKING FOR NOW, FIX TOMORROW
+Open_Interview <- data$`Open interviews`
+# Create a subset of the Open_Interview dataframe for Flicker and Ganzfeld experiences
+Open_Interview_Ganzfeld <- Open_Interview %>% filter(Experience == "Ganzfeld" )
+
+# Word cloud for Open_Interview_Ganzfeld
+
+words_Ganzfeld <- Open_Interview_Ganzfeld$Interview
+words_Ganzfeld <- Corpus(VectorSource(words_Ganzfeld))
+
+#Clean data
+corpus <- tm_map(words_Ganzfeld, content_transformer(tolower))
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removePunctuation)
+
+# Create a mapping dictionary
+word_mapping <- c("shapes" = "shape", "colours" = "colour", "patterns" = "pattern")
+
+# Replace words based on the mapping
+corpus <- tm_map(corpus, content_transformer(function(x) {
+  for (key in names(word_mapping)) {
+    x <- gsub(key, word_mapping[key], x)
+  }
+  x
+}))
+
+
+#create vector from tibble
+stop_words2_vector <- stop_words2$word
+
+# Word cloud for Open_Interview_Flicker
+words_Ganzfeld2 <- tm_map(corpus, removeWords, stop_words2_vector)
+
+# Generate word cloud
+set.seed(42)
+ wordcloud(words_Ganzfeld2, max.words=75, color='darkblue', random.order = FALSE)
+
+```
+```{r}
+# Create a term-document matrix
+tdm <- TermDocumentMatrix(words_Ganzfeld2)
+
+# Convert the term-document matrix into a matrix
+m <- as.matrix(tdm)
+
+# Get word frequencies
+word_freqs <- rowSums(m)
+
+# Create a data frame of words and their frequencies
+word_freqs_df <- data.frame(word = names(word_freqs), freq = word_freqs)
+
+# Sort the data frame by frequency in descending order
+word_freqs_df <- word_freqs_df[order(-word_freqs_df$freq), ]
+
+# Add a column for the percentage frequency
+word_freqs_df$percentage <- word_freqs_df$freq / sum(word_freqs_df$freq) * 100
+
+
+
+
+# Print the word frequency table
+top50<- word_freqs_df[1:75,]
+
+# Create a new column in the desired format
+top50$word_n_pct <- paste(top50$word, ", ", top50$freq, " (", round(top50$percentage, 2), "%)", sep = "")
+
+kable(top50, caption = "Top 75 words in Ganzfeld open interviews")
+```
+
+#### Word cloud wriite up
+
+Exploratory word clouds created from the open interview data are given in Figure 7 for Ganzflicker (A) and Ganzfeld (B). Corresponding word frequency tables are given in Supplementary Table X. For the purposes of illustration in the word cloud, plural words were concatenated into their singular (shapes = shape, colours = colour, patterns = pattern). The 50 most frequent words are illustrated frequency of words ranges from  (Interestingly, references to form constants are present in the Ganzflicker condition (tunnels, patterns, spirals), but not in the Ganzfeld., and there are more references to complex or figurative constructs within the Ganzflicker condition, (stars, dogs, hearts, people). Minor perceptual phenomena which could be related to phosphenes (line, round, oval, dots, circle(s)) were present in both conditions. In both conditions, there are frequent references to the dynamic nature of the experience (move(ing), fast, change(d)). 
+
+
+```{r}
+wordcloud(words_Ganzfeld2, max.words=50, color='darkblue',random.order = FALSE)
+
+```
+
+
+### Supplementary Table 4/summary statistics
+```{r}
+hallucination_counts_model %>%
+  group_by(Simple_Complex, Condition) %>%
+  summarise(
+    Mean = mean(Hallucination_Count),
+    sd = sd(Hallucination_Count))
+
+total %>%
+  group_by(Simple_Complex, Condition) %>%
+  summarise(
+    Mean = mean(Duration),
+    sd = sd(Duration))
+
+ASC %>%
+  group_by(ASC.dimension, Condition) %>%
+  summarise(
+    Mean = mean(Average.score),
+    sd = sd(Average.score))
+
+IEQ %>%
+  group_by(IEQ.dimension, Condition) %>%
+  summarise(
+    Mean = mean(Average.score),
+    sd = sd(Average.score))
+
+agecountdurationsleep %>%
+  group_by(Condition) %>%
+  summarise(
+    Mean = mean(Sleepiness.x),
+    sd = sd(Sleepiness.x))
+
+agecountdurationsleep %>%
+  group_by(Condition) %>%
+  summarise(
+    Mean = mean(Interference.x, na.rm=T),
+    sd = sd(Interference.x, na.rm = T))
+
+```
+
+
+### Supplementary Figure 1/ASC-IEQ
+
+```{r}
+#ASC
+fived1 <- data$`5D-ASC`
+
+#Remove columns you don't need
+fived1$Total <- NULL
+fived1$Total_normalised <- NULL
+
+#Re-order
+fived1 <- fived1 %>% relocate(`I saw things that I knew weren't real`, .after=`I felt like I was in a fantastic other world`)
+fived1 <- fived1 %>% relocate(`I saw things that I knew were not real (catch)`, .after=`I saw things that I knew weren't real`)
+
+#Remove columns you don't need
+fived1$Average <- NULL
+
+#Rename columns so they fit on a plot
+names(fived1)[names(fived1) == "I saw regular patterns"] <- "Regular patterns"
+names(fived1)[names(fived1) == "I saw colours before me"] <- "Colours before me"
+names(fived1)[names(fived1) == "I could see pictures from my past or fantasy extremely vividly"] <- "Vivid pictures from past/fantasy"
+names(fived1)[names(fived1) == "I saw whole scenes rolling by"] <- "Scenes rolling by"
+names(fived1)[names(fived1) == "My imagination was extremely vivid"] <- "Extremely vivid imagination"
+names(fived1)[names(fived1) == "I felt like I was in a fantastic other world"] <- "In a fantastic other world"
+names(fived1)[names(fived1) == "I saw things that I knew weren't real"] <- "Perceived unreal things"
+names(fived1)[names(fived1) == "I saw things that I knew were not real (catch)"] <- "Perceived unreal things (catch)"
+fivemelted<- melt(fived1, id.vars = c("Participant number", "Experience"))
+View(fivemelted)
+
+# Abbreviated text
+abbreviated_text <- c("Regular patterns", "Colours before me", "Vivid pictures from past/fantasy",
+                      "Scenes rolling by", "Extremely vivid imagination",
+                      "In a fantastic other world", "Perceived unreal things",
+                      "Perceived unreal things (catch)")
+
+fivemelted$variable <- factor(fivemelted$variable, levels = abbreviated_text)
+
+
+
+# Create a new column for grouping and color assignment
+fivemelted$Index <- 1:nrow(fivemelted)
+
+#Categorise
+fivemelted <- fivemelted %>%
+  mutate(Group = case_when(
+    variable %in% c('Regular patterns', 'Colours before me') ~ 'Elementary Imagery',
+    variable %in% c('Vivid pictures from past/fantasy', 'Extremely vivid imagination', 'Scenes rolling by') ~ 'Complex Imagery',
+    variable == 'In a fantastic other world' ~ 'Oceanic Boundlessness',
+    variable %in% c('Perceived unreal things', 'Perceived unreal things (catch)') ~ 'Visionary Reconstruction',
+    TRUE ~ 'Other Group'  # Assign 'Other Group' for all other cases
+  ))
+
+
+# Create the horizontal boxplot with angled x-axis markers
+fivedquestion <- ggplot(fivemelted, aes(x = variable, y = value, fill = interaction(Group, Experience))) +
+  geom_boxplot() +
+  scale_fill_manual("", 
+                    breaks = c("Elementary Imagery.Flicker", "Elementary Imagery.Ganzfeld",
+                               "Complex Imagery.Flicker", "Complex Imagery.Ganzfeld", "Oceanic Boundlessness.Flicker", "Oceanic Boundlessness.Ganzfeld",
+                               "Visionary Reconstruction.Flicker", "Visionary Reconstruction.Ganzfeld"),
+                    values = c("lightgreen", "darkgreen", 
+                               "orange", "#FFD580", "blue", "lightblue", "purple", "#D8BFD8"), 
+                    labels = c("Elementary Imagery - Ganzflicker", "Elementary Imagery - Ganzfeld",
+                               "Complex Imagery - Ganzflicker", "Complex Imagery - Ganzfeld",
+                               "Oceanic Boundlessness - Ganzflicker", "Oceanic Boundlessness - Ganzfeld",
+                               "Visionary Reconstruction - Ganzflicker", "Visionary Reconstruction - Ganzfeld")) +
+  ylab("Questionnaire score (ASC)") +
+  xlab("Question") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1),
+        axis.text = element_text(size = 14),  # Increase the text size to 12
+        axis.title = element_text(size = 16))  # Increase the axis title size to 14
+
+# Adjust the angle and alignment of x-axis text
+
+
+fivedquestion
+```
+```{r}
+#IEQ
+#Remove unneccesary columns
+imagery1 <- data$Imagery
+imagery1$Total <- NULL
+imagery1$Total_normalised <- NULL
+imagery1$Average <- NULL
+
+#abbreviate names so they fit on plot
+names(imagery1)[names(imagery1) == "I saw bursts of light or splashes of colour"] <- "Bursts of light / splashes of colour"
+names(imagery1)[names(imagery1) == "I saw abstract geometrical designs and pattersn"] <- "Abstract geometrical designs & patterns"
+names(imagery1)[names(imagery1) == "I saw rapidly transforming objects or figures"] <- "Changing objects or figures"
+names(imagery1)[names(imagery1) == "I saw repetitive, moving objects or figures embedded in geometric patterns"] <- "Moving objects or figures in geometry"
+names(imagery1)[names(imagery1) == "I saw stable, well defined, objects and figures"] <- "Stable objects and figures"
+names(imagery1)[names(imagery1) == "I saw snapshots or glimpses of full scenes"] <- "Snapshots of full scenes"
+names(imagery1)[names(imagery1) == "I saw fully fledged scenes without being part of them, similar to watching a movie"] <- "Fully-fledged scenes"
+names(imagery1)[names(imagery1) == "I was fully immersed within what looked and felt like another athhentic realm"] <- "Immersed in another realm"
+names(imagery1)[names(imagery1) == "I was surrounded by a supreme white light"] <- "Surrounded by supreme white light"
+names(imagery1)[names(imagery1) == "Over time, my vision progressed from simple (bursts, splashes, geometries) to complex (well-defined objects, figures) images"] <- "Simple to complex"
+names(imagery1)[names(imagery1) == "Over time, my vision progressed from isolated elements to full, immersive events"] <- "Isolated to immersive"
+imagerymelted<- melt(imagery1, id.vars = c("Participant number", "Experience"))
+fivemelted$variable <- factor(fivemelted$variable, levels = c("Bursts of light / splashes of colour",
+                                                              "Abstract geometrical designs & patterns",
+                                                              "Changing objects or figures",
+                                                              "Moving objects or figures in geometry",
+                                                              "Stable objects and figures",
+                                                              "Snapshots of full scenes",
+                                                              "Fully-fledged scenes",
+                                                              "Immersed in another realm",
+                                                              "Surrounded by supreme white light",
+                                                              "Simple to complex",
+                                                              "Isolated to immersive"))
+
+
+
+#Categorise into dimensions
+
+imagerymelted <- imagerymelted %>%
+  mutate(Group = case_when(
+    variable %in% c('Bursts of light / splashes of colour', 'Abstract geometrical designs & patterns',
+                    'Changing objects or figures', 'Moving objects or figures in geometry') ~ 'Simple imagery',
+    variable %in% c('Stable objects and figures', 'Snapshots of full scenes',
+                    'Fully-fledged scenes', 'Immersed in another realm',
+                    'Surrounded by supreme white light') ~ 'Complex imagery',
+    variable %in% c('Simple to complex',
+                    'Isolated to immersive') ~ 'Progressive',
+    TRUE ~ 'Other'  # Assign 'Other' for all other cases
+  ))
+
+#Plot
+imageryqplot <- ggplot(imagerymelted, aes(x = variable, y = value, fill = interaction(Group, Experience))) +
+  geom_boxplot() +
+  scale_fill_manual("", 
+                    breaks = c("Simple imagery.Flicker", "Simple imagery.Ganzfeld",
+                               "Complex imagery.Flicker", "Complex imagery.Ganzfeld",
+                               "Progressive.Flicker", "Progressive.Ganzfeld"),
+                    values = c("lightgreen", "darkgreen", 
+                               "orange", "#FFD580", "#AA336A", "pink"), 
+                    labels = c("Simple imagery - Ganzflicker", "Simple imagery - Ganzfeld",
+                               "Complex imagery - Ganzflicker", "Complex imagery - Ganzfeld",
+                               "Progressive - Ganzflicker", "Progressive - Ganzfeld")) +
+  ylab("Questionnaire score (IEQ)") +
+  xlab("Question") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1),
+        axis.text = element_text(size = 10),  # Increase the text size to 12
+        axis.title = element_text(size = 16))  # Increase the axis title size to 14
+
+imageryqplot
+``` 
+
+
+#### ASC and IEQ cor
+```{r}
+ASCcor1 <- ASC %>%
+  rename(
+    IEQ.dimension = ASC.dimension
+  )
+test <- merge(ASCcor1, IEQ, by = c("Participant.number", "Condition", "IEQ.dimension"))
+
+validation<- split(test,
+      f = test$Condition)
+
+val_flicker <- validation$Flicker
+val_ganzfeld <- validation$Ganzfeld
+
+validation_plot_flicker <- ggscatter(val_flicker, x = "Average.score.x", y = "Average.score.y", 
+                          cor.method = "pearson", add = "reg.line", conf.int = TRUE, 
+                          cor.coef = TRUE,
+                         cor.coef.size = 7,
+                          xlab = "Avg. ASC score", ylab = "Avg. IEQ score") #+
+  theme(text = element_text(size = 25))  # Increase text size to 20
+
+validation_plot_ganzfeld <- ggscatter(val_ganzfeld, x = "Average.score.x", y = "Average.score.y", 
+                          cor.method = "pearson", add = "reg.line", conf.int = TRUE, 
+                          cor.coef = TRUE,
+                         cor.coef.size = 7,
+                          xlab = "Avg. ASC score", ylab = "Avg. IEQ score") #+
+  theme(text = element_text(size = 25))  # Increase text size to 20
+
+ggarrange(validation_plot_flicker, validation_plot_ganzfeld, labels = c("Ganzflicker", "Ganzfeld"))
+```
+### Age and gender dist ###
+
+```{r}
+agecountdurationsleep %>%
+  summarise(
+  Mean = mean(age),
+    sd = sd(age))
+```
+
+```{r}
+#Moderator analysis
+
+#Import dates of birth
+details <- data$Details 
+
+#Merge with counts
+agecountduration <- merge(hallucination_counts,details,by="Participant_Number")
+
+#merge with merged data
+agecountdurationsleepmoderator <- merge(agecountduration, merged_data)
+
+agecountdurationsleepmoderator$duration <- ifelse(agecountdurationsleepmoderator$Condition == 'Flicker', 15, 25)
+
+#Clean
+agecountdurationsleepmoderator <- na.omit(agecountdurationsleepmoderator)
+
+#model1
+model1 <- glmmTMB(Hallucination_Count ~ Condition*Simple_Complex + offset(log(duration)) + (1|Participant_Number),
+                       family = "nbinom2",
+                       data=agecountdurationsleepmoderator)
+tab_model(model1)
+```
+```{r}
+model2<- glmmTMB(Hallucination_Count ~ Condition*Simple_Complex + Sleepiness + offset(log(duration)) + (1|Participant_Number), family = "nbinom2", data = agecountdurationsleepmoderator)
+tab_model(model2)
+```
+
+```{r}
+model3<-glmmTMB(Hallucination_Count ~ Condition * (Simple_Complex + Sleepiness) + offset(log(duration)) + (1|Participant_Number), family = "nbinom2", data = agecountdurationsleepmoderator)
+tab_model(model3)
+```
+
+```{r}
+model4<- glmmTMB(Hallucination_Count ~ (Sleepiness + Condition) * Simple_Complex + offset(log(duration)) + (1|Participant_Number), family = "nbinom2", data = agecountdurationsleepmoderator)
+
+tab_model(model4)
+```
+
+
+```{r}
+model5<- glmmTMB(Hallucination_Count ~ Sleepiness * Condition * Simple_Complex + offset(log(duration)) + (1|Participant_Number), family = "nbinom2", data = agecountdurationsleepmoderator)
+tab_model(model5)
+```
+ 
+```{r}
+#likelihood ratio test
+anova(model1, model2, model3, model4, model5)
+```
+
+
+
+```{r}
+agecountdurationsleepmoderator_dur <- merge(agecountdurationsleepmoderator, d)
+```
+
+```{r}
+model1a <- glmer(Duration ~ Simple_Complex*Condition + (1|Participant_Number),
+                 family=Gamma(link="log"),
+                 data=agecountdurationsleepmoderator_dur,
+                 control=glmerControl(optimizer= c("bobyqa", "bobyqa"),
+                                      optCtrl = list(maxfun=1e5)))
+tab_model(model1a)
+```
+```{r}
+
+```
+
+```{r}
+
+model2a <- glmer(Duration ~ Condition*Simple_Complex + Sleepiness + (1|Participant_Number),
+                 family=Gamma(link="log"),
+                 data=agecountdurationsleepmoderator_dur,
+                 control=glmerControl(optimizer= c("bobyqa", "bobyqa"),
+                                      optCtrl = list(maxfun=1e5)))
+tab_model(model2a)
+```
+
+```{r}
+model3a<-glmer(Duration ~ Condition*(Simple_Complex + Sleepiness) + (1|Participant_Number),
+                 family=Gamma(link="log"),
+                 data=agecountdurationsleepmoderator_dur,
+                 control=glmerControl(optimizer= c("bobyqa", "bobyqa"),
+                                      optCtrl = list(maxfun=1e5)))
+tab_model(model3a)
+
+```
+
+```{r}
+model4a<- glmer(Duration ~ (Sleepiness + Condition) * Simple_Complex + (1|Participant_Number),
+                 family=Gamma(link="log"),
+                 data=agecountdurationsleepmoderator_dur,
+                 control=glmerControl(optimizer= c("bobyqa", "bobyqa"),
+                                      optCtrl = list(maxfun=1e5)))
+tab_model(model4a)
+
+```
+
+
+```{r}
+model5a<- glmer(Duration ~ Sleepiness * Simple_Complex * Condition + (1|Participant_Number),
+                 family=Gamma(link="log"),
+                 data=agecountdurationsleepmoderator_dur,
+                 control=glmerControl(optimizer= c("bobyqa", "bobyqa"),
+                                      optCtrl = list(maxfun=1e5)))
+tab_model(model5a)
+```
+```{r}
+anova(model1a, model2a, model3a, model4a, model5a)
+```
+###plot
+```{r}
+agecountdurationsleepmoderator_dur$Sleepiness <- as.factor(agecountdurationsleepmoderator_dur$Sleepiness)
+
+library(ggplot2)
+library(ggdist)
+
+# Your data aggregation code remains the same
+
+library(ggplot2)
+library(ggdist)
+
+# Your data aggregation code remains the same
+
+g <- ggplot(agecountdurationsleepmoderator_dur, aes(x = Condition, y = Sleepiness, fill = Duration)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "blue") +
+  labs(x = "Condition", y = "Sleepiness", fill = "Avg duration \n of hallucinations (sec)") +
+  theme_classic() +
+  scale_x_discrete(labels = c('Ganzflicker', 'Ganzfeld')) +
+  theme(text = element_text(size = 20),
+        legend.position = "right")
+
+g
+
+
+```
+
+
+```{r}
+library(ggplot2)
+
+# Your data aggregation code for agecountdurationsleepmoderator_dur
+# ...
+
+# Create a faceted bar chart to show the three-way interaction
+g <- ggplot(agecountdurationsleepmoderator_dur, aes(x = Condition, y = Duration, fill = Simple_Complex)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) +
+  labs(x = "Condition", y = "Avg duration \n of hallucinations (sec)", fill = "Simple/Complex") +
+  theme_classic() +
+  scale_x_discrete(labels = c('Ganzflicker', 'Ganzfeld')) +
+  theme(text = element_text(size = 20),
+        legend.position = "top") + 
+  facet_wrap(~ Sleepiness, scales = "free_x")
+
+g
+
+```
+
+```{r}
+g <- ggplot(agecountdurationsleepmoderator_dur, aes(x = Condition, y = Duration, color = Sleepiness, group = Sleepiness)) +
+  geom_line() +
+  geom_point() +
+  facet_grid(. ~ Simple_Complex) +
+  labs(x = "Condition", y = "Avg duration \n of hallucinations (sec)", color = "Sleepiness") +
+  theme_classic() +
+  scale_x_discrete(labels = c('Ganzflicker', 'Ganzfeld')) +
+  theme(text = element_text(size = 20),
+        legend.position = "top")
+
+g
+```
+
+### Moderator analysis write up
+As a follow-up to a significant correlation between participants self-reported sleepiness and their total proportional time spent hallucinating, we carried out a moderator analysis to examine the influence of perceived sleepiness on our key button press measures, specifically hallucination frequency and average duration of hallucinations. We employed a stepwise approach, building a series of models that progressively included additional components, resulting in five models:
+
+1.	Model A: Main effects of condition, complexity and their interaction
+2.	Model B: Model A plus the main effect of sleepiness
+3.	Model C: Model B plus the interaction between condition and complexity
+4.	Model D: Model B plus the interaction between sleepiness and complexity
+5.	Model E: Included all main effects and interactions.
+
+Likelihood ratio tests were performed to assess the significance of each model's improvement over the previous one. Though there was evidence that Model D was a suitable fit for the data (p<0.001), this model did not reveal a significant effect of sleepiness (RR: 1.09, SE=0.10, T=0.88, p=0.380), nor did it indicate a significant effect of the interaction between sleepiness and complexity (RR: 1.04, SE=0.13, T=0.35, p=0.723). This suggests that sleepiness does not significantly contribute to hallucination frequency.
+On the other hand, when analysing duration data, both Model B and Model E appropriate fits for the data at hand (Model B – p<0.001; Model E – p=0.034).  In Model B, sleepiness was a significant predictor of the average duration of a hallucination (exp(B) = 0.85, SE = 0, T = -46.17, p<0.001), and in Model E, sleepiness and its interaction with Condition showed an effect on average duration (exp(B) = 1.07, SE = 0.10, T = 0.75, p=0.014). Moreover, a three-way interaction between sleepiness, complexity and condition was observed (exp(B) = 0.76, SE = 0.09, T = -2.23, p=0.026). This implies that self-reported sleepiness decreases the average duration of complex hallucinations, specifically in the Ganzfeld. 
+
+```{r}
+agecountdurationsleepmoderator_dur$SleepinessNumeric <- as.numeric(agecountdurationsleepmoderator_dur$Sleepiness)
+
+agecountdurationsleepmoderator_dur$renamed <- ifelse(agecountdurationsleepmoderator_dur$Condition == "Flicker", 'Ganzflicker', 'Ganzfeld')
+
+facet_order <- c('Ganzflicker', 'Ganzfeld')
+
+# Convert 'renamed' to a factor with the desired order
+agecountdurationsleepmoderator_dur$renamed <- factor(agecountdurationsleepmoderator_dur$renamed, levels = facet_order)
+
+# Print the levels of 'renamed' to check if they are in the correct order
+print(levels(agecountdurationsleepmoderator_dur$renamed))
+```
+
+```{r}
+
+g <- ggplot(agecountdurationsleepmoderator_dur, aes(x = SleepinessNumeric, y = Duration, colour = Simple_Complex)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, formula = y ~ x, size = 1) +
+  facet_grid(renamed ~ .) +
+  ylim(0,1) +
+  labs(x = "Subjective perception of sleepiness (+1)", y = "Avg duration of hallucinations (sec)", color = "Complexity") +
+  theme(text = element_text(size = 25)) +
+  scale_color_brewer(palette = "Pastel2")  +
+  theme_minimal() # Use theme_minimal() for a cleaner background
+
+
+g
+```
+
+```{r}
+h <- ggplot(agecountdurationsleepmoderator_dur, aes(x = SleepinessNumeric, y = Duration, colour = Condition)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, formula = y ~ x, size = 1) +
+  ylim(0,1) +
+  labs(x = "Sleepiness", y = "Avg duration of hallucinations (sec)", color = "Complexity") +
+  theme(text = element_text(size = 12)) +
+  theme_minimal() # Use theme_minimal() for a cleaner background
+
+
+h
+```
+Factor analysis - confirmatory
+```{r}
+library(lavaan)
+IEQtest <- IEQ
+IEQtest <- IEQtest %>%
+      rename(x1 = `I saw bursts of light or splashes of colour`,
+             x2 = `I saw abstract geometrical designs and pattersn`,
+             x3 = `I saw rapidly transforming objects or figures`,
+             x4 = `I saw repetitive, moving objects or figures embedded in geometric patterns`,
+             x5 = `I saw stable, well defined, objects and figures`,
+             x6 = `I saw snapshots or glimpses of full scenes`,
+             x7 = `I saw fully fledged scenes without being part of them, similar to watching a movie`,
+             x8 = `I was fully immersed within what looked and felt like another athhentic realm`) 
+
+```
+
+```{r}
+set.seed(27908876)
+
+n <- nrow(IEQtest)
+IEQtest$random <- rbinom(n, 1, 0.5)
+
+IEQtestCFA <- IEQtest[IEQtest$random == 1, ]
+IEQtestEFA <- IEQtest[IEQtest$random == 0, ]
+
+IEQtestCFA <- IEQtestCFA[,3:10]
+```
+
+```{r}
+
+modfa <- 'simple =~ x1 + x2 + x3 + x4
+complex =~ x5 + x6 + x7 + x8'
+  
+fit <- cfa(modfa, IEQtestCFA)
+
+summary(fit, fit.measures = TRUE)
+
+semPaths(fit,
+         what = 'est',
+         edge.label.cex = 0.9)
+```
+## Exploratory
+
+```{r}
+IEQtestEFA <- IEQtestEFA[,3:10]
+```
+
+```{r}
+fit1 <- factanal(IEQtestEFA, factors=2)
+print(fit1)
+semPaths(fit1,
+         what = 'est',
+         edge.label.cex = 0.9)
+```
+
+```{r}
+anova (fit, fit1)
+```
+
+Bayesian analysis
+```{r}
+d <- agecountduration
+
+d$duration <- ifelse(d$Condition == 'Ganzfeld', 25, 15)
+```
+
+Set priors
+```{r}
+priors <- prior("normal(0, 5)", class = "Intercept") +
+  prior("normal(0, 1)", class = "b") +
+  prior("normal(0, 1)", class = "sd", group = "Participant_Number") 
+```
+
+```{r}
+bm.nb <- brm(Hallucination_Count ~ Condition*Simple_Complex + offset(log(duration)) + (1|Participant_Number), 
+             data=d, 
+             prior = priors, 
+             sample_prior = 'yes',
+             family = negbinomial)
+```

@@ -1,0 +1,49 @@
+"0","library(MASS)  # For negative binomial model"
+"0","library(lme4)  # For mixed-effects models"
+"2","Loading required package: Matrix
+"
+"0","library(simr)"
+"2","
+Attaching package: ‘simr’
+
+"
+"2","The following object is masked from ‘package:lme4’:
+
+    getData
+
+"
+"0","library(dplyr)"
+"2","
+Attaching package: ‘dplyr’
+
+"
+"2","The following object is masked from ‘package:MASS’:
+
+    select
+
+"
+"2","The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+"
+"2","The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+"
+"0","library(tidyr)"
+"2","
+Attaching package: ‘tidyr’
+
+"
+"2","The following objects are masked from ‘package:Matrix’:
+
+    expand, pack, unpack
+
+"
+"0","library(glmmTMB)"
+"2","Warning: Package version inconsistency detected.
+glmmTMB was built with TMB version 1.9.10
+Current TMB version is 1.9.14
+Please re-install glmmTMB from source or restore original ‘TMB’ package (see '?reinstalling' for more information)"

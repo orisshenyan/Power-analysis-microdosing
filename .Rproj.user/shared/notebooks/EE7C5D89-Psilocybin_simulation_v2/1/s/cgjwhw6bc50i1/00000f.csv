@@ -1,0 +1,3 @@
+"0","#simulate one data set for 30 participants"
+"0","set.seed(123) "
+"0","n <- 30  # number of participants"

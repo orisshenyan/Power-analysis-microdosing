@@ -47,11 +47,28 @@ simulate_data <- function(n) {
   random_correlation <- 0.5
   effect_size <- 0.8 # standardized
   
+  # Random effects variance components
+  # assume smaller variances in the effect of drugs than the variance at baseline
+  Var_b <- c(random_intercept_sd^2,   # random intercept
+             random_intercept_sd^2/2, # random slope for main effect of Drug
+             0                      , # random slope for Ganzfeld:Psilocybin
+             0                      , # random slope for Simple:Psilocybin
+             0                      ) # random slope for Ganzfeld:Simple:Psilocybin
+  
+  # effect size of psylocibin (main effect) in units of the dependent variable
+  # the effect size is defined as cohen d so we need to pool together all sources
+  # of variability (residuals & random effects)
+  # see example here: https://mlisi.xyz/files/workshops/LMM101/LMM_part2.html#42
+  drug_main_effect <- effect_size * sqrt(residual_sd^2 + 
+                                           Var_b[1] +
+                                           0.5*Var_b[2] +
+                                           random_correlation * sqrt(Var_b[1]) * sqrt(Var_b[2]))
+  
   # Fixed parameters 
   beta0 <-fx[1]     # Intercept
   beta1 <- fx[2]    # ConditionGanzfeld
   beta2 <- fx[3]    # Simple_ComplexSimple
-  beta3 <- effect_size *sqrt(residual_sd^2 + random_intercept_sd^2)  # DrugPsilocybin 
+  beta3 <- drug_main_effect  # DrugPsilocybin 
   beta4 <- fx[4]    # ConditionGanzfeld:Simple_ComplexSimple
   beta5 <- 0        # ConditionGanzfeld:DrugPsilocybin
   beta6 <- 0        # Simple_ComplexSimple:DrugPsilocybin
@@ -63,17 +80,6 @@ simulate_data <- function(n) {
   names(beta) <- c("Intercept","Ganzfeld","Simple","Psilocybin",
                    "Ganzfeld:Simple","Ganzfeld:Psilocybin","Simple:Psilocybin",
                    "Ganzfeld:Simple:Psilocybin")
-  
-  # Residual standard deviation from your previous model
-  sigma <- sqrt(503.7)
-  
-  # Random effects variance components
-  # assume smaller variances in the effect of drugs than the variance at baseline
-  Var_b <- c(random_intercept_sd^2,   # random intercept
-             random_intercept_sd^2/2, # random slope for main effect of Drug
-             0                      , # random slope for Ganzfeld:Psilocybin
-             0                      , # random slope for Simple:Psilocybin
-             0                      ) # random slope for Ganzfeld:Simple:Psilocybin
   
   # note that currently I set some of the variances to zero, which 
   # effectively means we are simulating only random slopes for main effect of Drug
@@ -144,10 +150,10 @@ simulate_data <- function(n) {
   return(df[, c("Participant_Number", "Condition", "Simple_Complex", "Drug", "ASC_Score")])
 }
 
-
+# test
 simulated_data <- simulate_data(n = 30)
 
+# fit model
 sim_m <- lmer(ASC_Score ~ Condition * Simple_Complex * Drug + ( Drug | Participant_Number), data=simulated_data)
-
 summary(sim_m)
 

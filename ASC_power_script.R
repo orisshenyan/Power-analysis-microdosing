@@ -150,6 +150,7 @@ simulate_data <- function(n) {
   return(df[, c("Participant_Number", "Condition", "Simple_Complex", "Drug", "ASC_Score")])
 }
 
+# ------------------------------------------------------------------------------
 # test
 simulated_data <- simulate_data(n = 30)
 
